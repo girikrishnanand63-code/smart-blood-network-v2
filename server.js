@@ -32,11 +32,16 @@ const COMPATIBLE = {
     const pass = process.env.ADMIN_PASSWORD || "Admin@123456";
     
     const existing = db.prepare("SELECT * FROM users WHERE email=?").get(email);
+    const hash = bcrypt.hashSync(pass, 10);
     if (!existing) {
         db.prepare("INSERT INTO users(name,email,password_hash,role) VALUES(?,?,?,'admin')")
-            .run("Administrator", email, bcrypt.hashSync(pass, 10));
+            .run("Administrator", email, hash);
         console.log("Admin account successfully created for", email);
-    } else if (existing.role !== 'admin') {
+    } else {
+        db.prepare("UPDATE users SET password_hash=?, role='admin' WHERE email=?")
+            .run(hash, email);
+        console.log("Admin account verified & credentials updated for", email);
+    }
         db.prepare("UPDATE users SET role='admin' WHERE id=?").run(existing.id);
     }
 })();
