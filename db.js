@@ -1,60 +1,90 @@
 ﻿import Database from "better-sqlite3";
-const path = require("path");
+import path from "path";
+import { fileURLToPath } from "url";
 
-const file = process.env.DB_PATH || path.join(__dirname, "data.db");
-const db = new Database(file);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dbPath = path.join(__dirname, "blood_network.db");
+const db = new Database(dbPath);
+
+// Enable WAL mode for high concurrency
 db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
 
+// Database Schema Initialization
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
+    email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('donor','recipient','admin')),
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    role TEXT DEFAULT 'recipient',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pending_registrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL,
+    otp TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS donors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    user_id INTEGER UNIQUE,
     name TEXT NOT NULL,
     age INTEGER NOT NULL,
     blood_group TEXT NOT NULL,
     city TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    last_donation TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    contact TEXT NOT NULL,
+    last_donation_date TEXT,
+    is_available INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS requests (
+CREATE TABLE IF NOT EXISTS blood_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    patient TEXT NOT NULL,
+    requester_id INTEGER,
+    patient_name TEXT NOT NULL,
     blood_group TEXT NOT NULL,
     units INTEGER NOT NULL,
     hospital TEXT NOT NULL,
     city TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    needed_by TEXT NOT NULL,
-    urgency TEXT NOT NULL DEFAULT 'Normal',
-    status TEXT NOT NULL DEFAULT 'Open',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    contact_phone TEXT NOT NULL,
+    required_by TEXT NOT NULL,
+    urgency TEXT DEFAULT 'Normal',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(requester_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    request_id INTEGER NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
-    donor_id INTEGER NOT NULL REFERENCES donors(id) ON DELETE CASCADE,
-    donor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined')),
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    responded_at TEXT
+    recipient_id INTEGER NOT NULL,
+    request_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'unread',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(request_id) REFERENCES blood_requests(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS donations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    donor_id INTEGER NOT NULL,
+    request_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'committed',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+    FOREIGN KEY(request_id) REFERENCES blood_requests(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_donors_search ON donors(blood_group, city);
-CREATE INDEX IF NOT EXISTS idx_notes_user ON notifications(donor_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notifications(recipient_id, status);
 `);
 
 export default db;
