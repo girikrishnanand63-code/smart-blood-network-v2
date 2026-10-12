@@ -1,3 +1,5 @@
 ﻿node_modules
 .env
-donors.db
+data.db*
+test.txt
+ 

@@ -1,4 +1,5 @@
-const crypto = require("crypto");require("dotenv").config();
+﻿require("dotenv").config();
+const crypto = require("crypto");
 const { sendOtpEmail } = require("./mail");
 const express = require("express");
 const path = require("path");
@@ -9,12 +10,9 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const db = require("./db");
 
-const isProd = process.env.NODE_ENV === "production";
-if (isProd && !(process.env.JWT_SECRET || "bloodDonorSecretKey2026")) {
-    console.error("JWT_SECRET environment variable is required in production.");
-    process.exit(1);
-}
-const SECRET = (process.env.JWT_SECRET || "bloodDonorSecretKey2026") || "dev-only-secret-change-me";
+/* JWT secret with fail-safe fallback */
+const SECRET = process.env.JWT_SECRET || "bloodDonorSecretKey2026_Secure_JWT";
+
 const WAIT_DAYS = 90;
 const GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const COMPATIBLE = {
@@ -28,15 +26,19 @@ const COMPATIBLE = {
     "O-": ["O-"]
 };
 
-/* ---------- Bootstrap First Admin ---------- */
+/* ---------- Bootstrap First Admin with guaranteed fallback ---------- */
 (function bootstrapAdmin() {
-    const email = (((process.env.ADMIN_EMAIL || "girikrishnanand63@gmail.com") || "girikrishnanand63@gmail.com") || "").trim().toLowerCase();
-    const pass = ((process.env.ADMIN_PASSWORD || "Admin@123456") || "Admin@123456");
-    if (!email || !pass) return;
-    if (db.prepare("SELECT 1 FROM users WHERE role='admin'").get()) return;
-    db.prepare("INSERT INTO users(name,email,password_hash,role) VALUES(?,?,?,'admin')")
-        .run("Administrator", email, bcrypt.hashSync(pass, 10));
-    console.log("Admin account created for", email);
+    const email = (process.env.ADMIN_EMAIL || "girikrishnanand63@gmail.com").trim().toLowerCase();
+    const pass = process.env.ADMIN_PASSWORD || "Admin@123456";
+    
+    const existing = db.prepare("SELECT * FROM users WHERE email=?").get(email);
+    if (!existing) {
+        db.prepare("INSERT INTO users(name,email,password_hash,role) VALUES(?,?,?,'admin')")
+            .run("Administrator", email, bcrypt.hashSync(pass, 10));
+        console.log("Admin account successfully created for", email);
+    } else if (existing.role !== 'admin') {
+        db.prepare("UPDATE users SET role='admin' WHERE id=?").run(existing.id);
+    }
 })();
 
 const app = express();
@@ -52,6 +54,11 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
+
+// Direct Google Search Console Verification Route
+app.get("/google692d880d16198008.html", (req, res) => {
+    res.type("text/html").send("google-site-verification: google692d880d16198008.html");
+});
 
 /* ---------- Helpers ---------- */
 const donorCode = id => "BD" + (1000 + id);
@@ -193,6 +200,7 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
     try {
         await sendOtpEmail(email, name, otp);
     } catch (e) {
+        console.error("OTP email failed:", e && e.message ? e.message : e);
         db.prepare("DELETE FROM pending_signups WHERE email=?").run(email);
         return bad(res, "Could not send the OTP email. Please try again later.", 502);
     }
@@ -250,6 +258,7 @@ app.post("/api/auth/resend-otp", authLimiter, async (req, res) => {
     try {
         await sendOtpEmail(email, p.name, otp);
     } catch (e) {
+        console.error("OTP email failed:", e && e.message ? e.message : e);
         return bad(res, "Could not send the OTP email. Please try again later.", 502);
     }
     res.json({ ok: true });
@@ -266,7 +275,7 @@ app.post("/api/auth/login", authLimiter, (req, res) => {
     res.cookie("sbd_token", token, {
         httpOnly: true,
         sameSite: "strict",
-        secure: isProd,
+        secure: false,
         maxAge: 7 * 24 * 3600 * 1000
     });
     res.json({ ok: true });
@@ -482,21 +491,23 @@ app.delete("/api/admin/requests/:id", requireAuth, requireAdmin, (req, res) => {
     res.json({ ok: true });
 });
 
-/* ---------- Static and Listen ---------- */
+/* ---------- Health & Static Files ---------- */
 app.get("/api/health", (req, res) => res.json({ ok: true }));
-app.use("/api", (req, res) => bad(res, "Not found.", 404));
 
 app.use(express.static(path.join(__dirname, "public")));
+
+// Fallback for API 404
+app.use("/api", (req, res) => bad(res, "Not found.", 404));
+
+// SPA catch-all fallback
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 app.use((err, req, res, next) => {
     console.error(err);
     res.status(500).json({ error: "Server error. Please try again." });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on http://localhost:" + PORT));
-
-// Google Search Console Verification
-app.get('/google692d880d16198008.html', (req, res) => {
-    res.send('google-site-verification: google692d880d16198008.html');
-});
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, "0.0.0.0", () => console.log("Server running on port " + PORT));

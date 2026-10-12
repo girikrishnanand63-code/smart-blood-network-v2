@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,13 +6,13 @@
     <meta name="description" content="Smart Blood Donor Network connects blood donors with people in need.">
     <title>Smart Blood Donor Network</title>
     <link rel="stylesheet" href="style.css">
-    <meta name="google-site-verification" content="Oo05dz1nIvF5o-ExgfPDpiJp3Ckm5D8l7hwEz8rU684" />
+    <meta name="google-site-verification" content="692d880d16198008" />
 </head>
 <body>
 
     <!-- Header -->
     <header>
-        <a href="#home" class="logo">🩸 Smart<span>Donor</span></a>
+        <a href="#home" class="logo">ðŸ©¸ Smart<span>Donor</span></a>
 
         <nav>
             <a href="#home">Home</a>
@@ -29,7 +29,7 @@
             <button type="button" id="loginBtn" onclick="showSection('login')">Login</button>
             <button type="button" id="signupBtn" onclick="showSection('signup')">Sign Up</button>
             <button type="button" id="notifBtn" class="hidden" onclick="showSection('notifications')">
-                🔔 Notifications <span id="notifBadge" class="status ok hidden">0</span>
+                ðŸ”” Notifications <span id="notifBadge" class="status ok hidden">0</span>
             </button>
             <button type="button" onclick="showSection('profile')">My Profile</button>
             <button type="button" id="adminBtn" class="hidden" onclick="showSection('admin')">Admin</button>
@@ -41,8 +41,8 @@
 
         <!-- Home -->
         <section id="home" class="page hero">
-            <p class="tagline">BE A HERO • DONATE BLOOD</p>
-            <h1>Donate Blood,<br>Save a Life ❤️</h1>
+            <p class="tagline">BE A HERO â€¢ DONATE BLOOD</p>
+            <h1>Donate Blood,<br>Save a Life â¤ï¸</h1>
             <p>Find blood donors, register as a donor and help people get connected when they need blood.</p>
 
             <div class="hero-buttons">
@@ -127,7 +127,7 @@
 
         <!-- Donor Registration -->
         <section id="register-donor" class="page card hidden">
-            <h2>Donor Registration 🩸</h2>
+            <h2>Donor Registration ðŸ©¸</h2>
             <p>Register your details to join the donor network. Log in first so requests can reach you.</p>
 
             <form id="donorForm">
@@ -200,7 +200,7 @@
 
         <!-- Request Blood -->
         <section id="request-blood" class="page card hidden">
-            <h2>Request Blood 🆘</h2>
+            <h2>Request Blood ðŸ†˜</h2>
             <p>Submit a request. Compatible, available donors in your city will be notified.</p>
 
             <form id="requestForm">
@@ -256,14 +256,14 @@
 
         <!-- Notifications -->
         <section id="notifications" class="page card hidden">
-            <h2>Donation Requests 🔔</h2>
+            <h2>Donation Requests ðŸ””</h2>
             <p>Patients who need your blood group in your city. Accept or decline each request.</p>
             <div id="notificationList"><p>No notifications.</p></div>
         </section>
 
         <!-- Emergency -->
         <section id="emergency" class="page card hidden">
-            <h2>🚨 Emergency Blood Needed</h2>
+            <h2>ðŸš¨ Emergency Blood Needed</h2>
             <p>Sends an emergency request to all matching donors right away and shows who is available.</p>
 
             <form id="emergencyForm">
@@ -304,22 +304,21 @@
 
         <!-- Admin Dashboard -->
         <section id="admin" class="page card hidden">
-            <h2>Admin Dashboard 🛠️</h2>
+            <h2>Admin Dashboard ðŸ› ï¸</h2>
             <p>Overview of users, donors and blood requests.</p>
             <div id="adminContent"></div>
         </section>
 
         <!-- Profile -->
         <section id="profile" class="page card hidden">
-            <h2>My Profile 👤</h2>
+            <h2>My Profile ðŸ‘¤</h2>
             <p>View your account information here.</p>
             <div id="profileDetails">
                 <p>Please log in to view your profile.</p>
             </div>
             <button type="button" onclick="showSection('login')">Login to Continue</button>
             <button type="button" class="secondary" onclick="showSection('register-donor')">Complete Donor Registration</button>
-            <button type="button" class="secondary hidden" id="logoutButton">Logout</button>
-        </section>
+            <button type="button" class="secondary hidden" id="profileLogoutBtn">Logout</button>`n        </section>
 
         <!-- Donation History -->
         <section id="history" class="page card hidden">
@@ -344,8 +343,8 @@
     </main>
 
     <footer>
-        <p>🩸 Smart Blood Donor Network • Saving Lives Together</p>
-        <p>© 2026 Smart Blood Donor Network</p>
+        <p>ðŸ©¸ Smart Blood Donor Network â€¢ Saving Lives Together</p>
+        <p>Â© 2026 Smart Blood Donor Network</p>
         <a href="#contact" onclick="showSection('contact')">Help &amp; Contact</a>
     </footer>
 
