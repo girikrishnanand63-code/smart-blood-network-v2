@@ -106,6 +106,43 @@ function adminMiddleware(req, res, next) {
    AUTH ROUTES
    ========================================================================= */
 
+app.post("/api/auth/signup", async (req, res) => {
+    try {
+        const { name, email, password, role } = req.body;
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: "Name, email and password are required" });
+        }
+        const cleanEmail = email.trim().toLowerCase();
+        const existing = db.prepare("SELECT id FROM users WHERE email=?").get(cleanEmail);
+        if (existing) {
+            return res.status(400).json({ error: "Email is already registered" });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        const assignedRole = role === "donor" ? "donor" : "recipient";
+
+        const info = db.prepare(`
+            INSERT INTO users(name, email, password_hash, role)
+            VALUES(?,?,?,?)
+        `).run(name.trim(), cleanEmail, passwordHash, assignedRole);
+
+        const newUser = { id: info.lastInsertRowid, name: name.trim(), email: cleanEmail, role: assignedRole };
+        const token = generateToken(newUser);
+
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        res.json({ message: "Registration successful", user: newUser, token });
+    } catch (err) {
+        console.error("Signup error:", err);
+        res.status(500).json({ error: "Registration failed" });
+    }
+});
+
 app.post("/api/auth/register-request", async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
