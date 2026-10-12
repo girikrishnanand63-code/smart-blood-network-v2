@@ -1,4 +1,4 @@
-const Database = require("better-sqlite3");
+﻿import Database from "better-sqlite3";
 const path = require("path");
 
 const file = process.env.DB_PATH || path.join(__dirname, "data.db");
@@ -57,4 +57,4 @@ CREATE INDEX IF NOT EXISTS idx_donors_search ON donors(blood_group, city);
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notifications(donor_user_id, status);
 `);
 
-module.exports = db;
+export default db;

@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+﻿import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -20,7 +20,7 @@ async function sendOtpEmail(toEmail, toName, otp) {
         subject: "Your Blood Donor Network Verification Code",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-                <h2 style="color: #c0182b; text-align: center;">🩸 Smart Blood Donor Network</h2>
+                <h2 style="color: #c0182b; text-align: center;">ðŸ©¸ Smart Blood Donor Network</h2>
                 <p>Hello <strong>${toName || "User"}</strong>,</p>
                 <p>Enter the verification code below to activate your account:</p>
                 <div style="text-align: center; margin: 25px 0;">
@@ -36,4 +36,4 @@ async function sendOtpEmail(toEmail, toName, otp) {
     return true;
 }
 
-module.exports = { sendOtpEmail };
+export { sendOtpEmail };
