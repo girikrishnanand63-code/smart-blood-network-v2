@@ -96,6 +96,7 @@ function adminMiddleware(req, res, next) {
 
 // Signup -> stores in pending table and sends 6-digit OTP
 // server.js ke andar signup handler:
+// Signup -> Send OTP without blocking the HTTP response
 const signupHandler = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
@@ -123,8 +124,8 @@ const signupHandler = async (req, res) => {
             VALUES(?,?,?,?,?,?)
         `).run(cleanEmail, name.trim(), passwordHash, assignedRole, otp, expiresAt);
 
-        // Background dispatch - frontend response freeze nahi hoga
-        sendOtpEmail(cleanEmail, otp).catch(e => console.error("Email send err:", e.message));
+        // Non-blocking trigger: Browser response turant jayega
+        sendOtpEmail(cleanEmail, otp).catch(e => console.error("Email send error:", e.message));
 
         res.json({ message: "Verification code sent to your email" });
     } catch (err) {
@@ -133,6 +134,8 @@ const signupHandler = async (req, res) => {
     }
 };
 
+app.post("/api/auth/signup", signupHandler);
+app.post("/api/auth/register-request", signupHandler);
 app.post("/api/auth/signup", signupHandler);
 app.post("/api/auth/register-request", signupHandler);
 
@@ -185,8 +188,10 @@ app.post("/api/auth/resend-otp", async (req, res) => {
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
         db.prepare("UPDATE pending_registrations SET otp=?, expires_at=? WHERE email=?").run(otp, expiresAt, cleanEmail);
 
-        await sendOtpEmail(cleanEmail, otp);
-        res.json({ message: "New verification code sent" });
+        // Non-blocking trigger
+        sendOtpEmail(cleanEmail, otp).catch(e => console.error("Resend error:", e.message));
+
+        res.json({ message: "A new OTP has been sent." });
     } catch (err) {
         res.status(500).json({ error: "Failed to resend code" });
     }

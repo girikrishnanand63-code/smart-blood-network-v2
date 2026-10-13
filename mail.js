@@ -37,7 +37,7 @@ async function sendOtpEmail(toEmail, otp) {
             `
         });
 
-        // 5 seconds se zyada wait kabhi nahi karega
+        // 5 seconds strict cutoff
         const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error("SMTP timeout after 5s")), 5000)
         );
