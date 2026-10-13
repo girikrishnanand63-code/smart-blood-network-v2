@@ -1,9 +1,9 @@
 ﻿import nodemailer from "nodemailer";
 
-let transporter;
+let transporter = null;
 
 if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    transporter = nodemailer.createTransporter({
+    transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
             user: process.env.GMAIL_USER,
@@ -33,6 +33,7 @@ async function sendOtpEmail(toEmail, otp) {
                 </div>
             `
         });
+        console.log(`[EMAIL SENT] Verification code successfully sent to ${toEmail}`);
         return true;
     } catch (err) {
         console.error("Nodemailer Error, falling back to console:", err.message);
