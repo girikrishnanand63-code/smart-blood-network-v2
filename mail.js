@@ -6,9 +6,12 @@ if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
     transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
-            user: process.env.GMAIL_USER,
-            pass: process.env.GMAIL_PASS
-        }
+            user: process.env.GMAIL_USER.trim(),
+            pass: process.env.GMAIL_PASS.trim()
+        },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000
     });
 }
 
@@ -19,8 +22,8 @@ async function sendOtpEmail(toEmail, otp) {
     }
 
     try {
-        await transporter.sendMail({
-            from: `"Smart Blood Donor Network" <${process.env.GMAIL_USER}>`,
+        const mailPromise = transporter.sendMail({
+            from: `"Smart Blood Donor Network" <${process.env.GMAIL_USER.trim()}>`,
             to: toEmail,
             subject: "Your Blood Donor Network Verification Code",
             text: `Your verification OTP is: ${otp}. It will expire in 10 minutes.`,
@@ -33,10 +36,17 @@ async function sendOtpEmail(toEmail, otp) {
                 </div>
             `
         });
+
+        // 5 seconds se zyada wait kabhi nahi karega
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("SMTP timeout after 5s")), 5000)
+        );
+
+        await Promise.race([mailPromise, timeoutPromise]);
         console.log(`[EMAIL SENT] Verification code successfully sent to ${toEmail}`);
         return true;
     } catch (err) {
-        console.error("Nodemailer Error, falling back to console:", err.message);
+        console.error("Nodemailer failed or timed out:", err.message);
         console.log(`[FALLBACK EMAIL] OTP for ${toEmail}: ${otp}`);
         return true;
     }

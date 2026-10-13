@@ -95,6 +95,7 @@ function adminMiddleware(req, res, next) {
    ========================================================================= */
 
 // Signup -> stores in pending table and sends 6-digit OTP
+// server.js ke andar signup handler:
 const signupHandler = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
@@ -122,11 +123,13 @@ const signupHandler = async (req, res) => {
             VALUES(?,?,?,?,?,?)
         `).run(cleanEmail, name.trim(), passwordHash, assignedRole, otp, expiresAt);
 
-        await sendOtpEmail(cleanEmail, otp);
+        // Background dispatch - frontend response freeze nahi hoga
+        sendOtpEmail(cleanEmail, otp).catch(e => console.error("Email send err:", e.message));
+
         res.json({ message: "Verification code sent to your email" });
     } catch (err) {
         console.error("Signup error:", err);
-        res.status(500).json({ error: "Failed to send verification email" });
+        res.status(500).json({ error: "Failed to process signup request" });
     }
 };
 
