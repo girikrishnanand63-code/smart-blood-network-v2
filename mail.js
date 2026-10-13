@@ -1,52 +1,47 @@
-﻿import nodemailer from "nodemailer";
-
-let transporter = null;
-
-if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-            user: process.env.GMAIL_USER.trim(),
-            pass: process.env.GMAIL_PASS.trim()
-        },
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-        socketTimeout: 5000
-    });
-}
+﻿const RESEND_API_KEY = process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.trim() : null;
 
 async function sendOtpEmail(toEmail, otp) {
-    if (!transporter) {
+    if (!RESEND_API_KEY) {
         console.log(`[DEV / FALLBACK EMAIL] OTP for ${toEmail}: ${otp}`);
         return true;
     }
 
     try {
-        const mailPromise = transporter.sendMail({
-            from: `"Smart Blood Donor Network" <${process.env.GMAIL_USER.trim()}>`,
-            to: toEmail,
-            subject: "Your Blood Donor Network Verification Code",
-            text: `Your verification OTP is: ${otp}. It will expire in 10 minutes.`,
-            html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-                    <h2 style="color: #dc2626;">Blood Donor Network Verification</h2>
-                    <p>Use the verification code below to complete your registration:</p>
-                    <h1 style="background: #fef2f2; color: #dc2626; padding: 10px 20px; display: inline-block; letter-spacing: 4px; border-radius: 6px;">${otp}</h1>
-                    <p style="margin-top: 20px; color: #666; font-size: 13px;">Valid for 10 minutes. If you did not request this, please ignore.</p>
-                </div>
-            `
+        const response = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${RESEND_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                from: "Blood Network <onboarding@resend.dev>",
+                to: [toEmail],
+                subject: "Your Blood Donor Network Verification Code",
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 24px; color: #222; max-width: 500px; margin: auto; border: 1px solid #fee2e2; border-radius: 8px;">
+                        <h2 style="color: #dc2626; margin-top: 0;">Blood Donor Network</h2>
+                        <p style="font-size: 15px;">Your one-time verification code is:</p>
+                        <div style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 14px 24px; display: inline-block; font-size: 28px; font-weight: bold; letter-spacing: 6px; border-radius: 6px;">
+                            ${otp}
+                        </div>
+                        <p style="margin-top: 20px; color: #666; font-size: 13px;">This code is valid for 10 minutes. If you did not request this, please ignore.</p>
+                    </div>
+                `
+            })
         });
 
-        // 5 seconds strict cutoff
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("SMTP timeout after 5s")), 5000)
-        );
+        const data = await response.json();
 
-        await Promise.race([mailPromise, timeoutPromise]);
-        console.log(`[EMAIL SENT] Verification code successfully sent to ${toEmail}`);
+        if (!response.ok) {
+            console.error("❌ Resend API Error:", data.message || JSON.stringify(data));
+            console.log(`[FALLBACK EMAIL] OTP for ${toEmail}: ${otp}`);
+            return true;
+        }
+
+        console.log(`✅ [EMAIL SENT VIA RESEND] Successfully sent to ${toEmail}. ID: ${data.id}`);
         return true;
     } catch (err) {
-        console.error("Nodemailer failed or timed out:", err.message);
+        console.error("❌ Resend dispatch failed:", err.message);
         console.log(`[FALLBACK EMAIL] OTP for ${toEmail}: ${otp}`);
         return true;
     }
