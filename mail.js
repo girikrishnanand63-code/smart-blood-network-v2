@@ -41,7 +41,7 @@
         if (!response.ok) {
             console.error("❌ Resend API Error:", data.message || JSON.stringify(data));
         } else {
-            console.log(`✅ [EMAIL DELIVERED] Real email inbox me chali gayi! ID: ${data.id}`);
+            console.log(`✅ [EMAIL DELIVERED] Real email inbox me deliver ho gayi! ID: ${data.id}`);
         }
     } catch (err) {
         console.error("❌ Network fetch failed:", err.message);
