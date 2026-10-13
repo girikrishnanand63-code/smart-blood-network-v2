@@ -14,19 +14,7 @@ const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "bloodDonorSecretKey2026_Secure_JWT";
 
-/* ---------- Blood Compatibility Matrix ---------- */
-const COMPATIBILITY = {
-    "A+": ["A+", "AB+"],
-    "A-": ["A+", "A-", "AB+", "AB-"],
-    "B+": ["B+", "AB+"],
-    "B-": ["B+", "B-", "AB+", "AB-"],
-    "AB+": ["AB+"],
-    "AB-": ["AB+", "AB-"],
-    "O+": ["A+", "B+", "AB+", "O+"],
-    "O-": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
-};
-
-/* ---------- Reverse Compatibility: Who can donate to this recipient ---------- */
+/* ---------- Compatibility Matrix ---------- */
 const CAN_RECEIVE_FROM = {
     "A+": ["A+", "A-", "O+", "O-"],
     "A-": ["A-", "O-"],
@@ -38,7 +26,7 @@ const CAN_RECEIVE_FROM = {
     "O-": ["O-"]
 };
 
-/* ---------- Bootstrap First Admin with guaranteed fallback ---------- */
+/* ---------- Bootstrap First Admin ---------- */
 (function bootstrapAdmin() {
     try {
         const email = (process.env.ADMIN_EMAIL || "girikrishnanand63@gmail.com").trim().toLowerCase();
@@ -67,7 +55,7 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-/* Serve Google Verification file explicitly */
+/* Serve Google Verification file */
 app.get("/google692d880d16198008.html", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "google692d880d16198008.html"));
 });
@@ -103,47 +91,11 @@ function adminMiddleware(req, res, next) {
 }
 
 /* =========================================================================
-   AUTH ROUTES
+   AUTH ROUTES (Exact Match For script.js)
    ========================================================================= */
 
-app.post("/api/auth/signup", async (req, res) => {
-    try {
-        const { name, email, password, role } = req.body;
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: "Name, email and password are required" });
-        }
-        const cleanEmail = email.trim().toLowerCase();
-        const existing = db.prepare("SELECT id FROM users WHERE email=?").get(cleanEmail);
-        if (existing) {
-            return res.status(400).json({ error: "Email is already registered" });
-        }
-
-        const passwordHash = await bcrypt.hash(password, 10);
-        const assignedRole = role === "donor" ? "donor" : "recipient";
-
-        const info = db.prepare(`
-            INSERT INTO users(name, email, password_hash, role)
-            VALUES(?,?,?,?)
-        `).run(name.trim(), cleanEmail, passwordHash, assignedRole);
-
-        const newUser = { id: info.lastInsertRowid, name: name.trim(), email: cleanEmail, role: assignedRole };
-        const token = generateToken(newUser);
-
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
-
-        res.json({ message: "Registration successful", user: newUser, token });
-    } catch (err) {
-        console.error("Signup error:", err);
-        res.status(500).json({ error: "Registration failed" });
-    }
-});
-
-app.post("/api/auth/register-request", async (req, res) => {
+// Signup -> stores in pending table and sends 6-digit OTP
+const signupHandler = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
         if (!name || !email || !password) {
@@ -173,12 +125,16 @@ app.post("/api/auth/register-request", async (req, res) => {
         await sendOtpEmail(cleanEmail, otp);
         res.json({ message: "Verification code sent to your email" });
     } catch (err) {
-        console.error("Register request error:", err);
+        console.error("Signup error:", err);
         res.status(500).json({ error: "Failed to send verification email" });
     }
-});
+};
 
-app.post("/api/auth/register-verify", async (req, res) => {
+app.post("/api/auth/signup", signupHandler);
+app.post("/api/auth/register-request", signupHandler);
+
+// Verify OTP -> creates user in users table
+const verifyOtpHandler = async (req, res) => {
     try {
         const { email, otp } = req.body;
         if (!email || !otp) return res.status(400).json({ error: "Email and OTP required" });
@@ -192,33 +148,26 @@ app.post("/api/auth/register-verify", async (req, res) => {
             return res.status(400).json({ error: "Verification code has expired. Please sign up again." });
         }
 
-        if (pending.otp !== otp.trim()) {
+        if (pending.otp !== String(otp).trim()) {
             return res.status(400).json({ error: "Incorrect verification code" });
         }
 
-        const info = db.prepare(`
+        db.prepare(`
             INSERT INTO users(name, email, password_hash, role)
             VALUES(?,?,?,?)
         `).run(pending.name, pending.email, pending.password_hash, pending.role);
 
         db.prepare("DELETE FROM pending_registrations WHERE email=?").run(cleanEmail);
 
-        const newUser = { id: info.lastInsertRowid, name: pending.name, email: pending.email, role: pending.role };
-        const token = generateToken(newUser);
-
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
-
-        res.json({ message: "Registration successful", user: newUser, token });
+        res.json({ message: "Email verified! Please log in." });
     } catch (err) {
         console.error("Verify error:", err);
         res.status(500).json({ error: "Registration verification failed" });
     }
-});
+};
+
+app.post("/api/auth/verify-otp", verifyOtpHandler);
+app.post("/api/auth/register-verify", verifyOtpHandler);
 
 app.post("/api/auth/resend-otp", async (req, res) => {
     try {
@@ -243,7 +192,7 @@ app.post("/api/auth/resend-otp", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+        if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
         const cleanEmail = email.trim().toLowerCase();
         const user = db.prepare("SELECT * FROM users WHERE email=?").get(cleanEmail);
@@ -266,7 +215,6 @@ app.post("/api/auth/login", async (req, res) => {
             token
         });
     } catch (err) {
-        console.error("Login error:", err);
         res.status(500).json({ error: "Login failed" });
     }
 });
@@ -280,83 +228,126 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
     const user = db.prepare("SELECT id, name, email, role, created_at FROM users WHERE id=?").get(req.user.id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const donor = db.prepare("SELECT * FROM donors WHERE user_id=?").get(user.id);
-    res.json({ user, donorProfile: donor || null });
+    const pendingRow = db.prepare("SELECT COUNT(*) AS c FROM notifications WHERE recipient_id=? AND status='pending'").get(user.id);
+    user.pending = pendingRow ? pendingRow.c : 0;
+
+    res.json({ user });
 });
 
 /* =========================================================================
-   DONORS
+   DONORS ROUTES (Exact Match For script.js)
    ========================================================================= */
 
-app.post("/api/donors/register", authMiddleware, (req, res) => {
+const saveDonorHandler = (req, res) => {
     try {
-        const { name, age, blood_group, city, contact, last_donation_date, consent } = req.body;
-        if (!name || !age || !blood_group || !city || !contact) {
-            return res.status(400).json({ error: "All required donor fields must be provided" });
-        }
-        if (!consent) {
-            return res.status(400).json({ error: "Consent is required to list as donor" });
-        }
-        if (Number(age) < 18 || Number(age) > 65) {
-            return res.status(400).json({ error: "Donor age must be between 18 and 65" });
+        const { name, age, bloodGroup, blood_group, city, phone, contact, lastDonation, last_donation_date } = req.body;
+        const group = bloodGroup || blood_group;
+        const ph = phone || contact;
+        const lastDon = lastDonation || last_donation_date || null;
+
+        if (!name || !age || !group || !city || !ph) {
+            return res.status(400).json({ error: "All required fields must be provided" });
         }
 
         const existing = db.prepare("SELECT id FROM donors WHERE user_id=?").get(req.user.id);
+        let donorDbId;
+
         if (existing) {
             db.prepare(`
                 UPDATE donors
                 SET name=?, age=?, blood_group=?, city=?, contact=?, last_donation_date=?, is_available=1
                 WHERE user_id=?
-            `).run(name.trim(), Number(age), blood_group, city.trim(), contact.trim(), last_donation_date || null, req.user.id);
-            return res.json({ message: "Donor profile updated successfully" });
+            `).run(name.trim(), Number(age), group, city.trim(), ph.trim(), lastDon, req.user.id);
+            donorDbId = existing.id;
+        } else {
+            const info = db.prepare(`
+                INSERT INTO donors(user_id, name, age, blood_group, city, contact, last_donation_date, is_available)
+                VALUES(?,?,?,?,?,?,?,1)
+            `).run(req.user.id, name.trim(), Number(age), group, city.trim(), ph.trim(), lastDon);
+            donorDbId = info.lastInsertRowid;
+            db.prepare("UPDATE users SET role='donor' WHERE id=? AND role!='admin'").run(req.user.id);
         }
 
-        db.prepare(`
-            INSERT INTO donors(user_id, name, age, blood_group, city, contact, last_donation_date, is_available)
-            VALUES(?,?,?,?,?,?,?,1)
-        `).run(req.user.id, name.trim(), Number(age), blood_group, city.trim(), contact.trim(), last_donation_date || null);
-
-        db.prepare("UPDATE users SET role='donor' WHERE id=? AND role!='admin'").run(req.user.id);
-
-        res.json({ message: "Donor registered successfully" });
+        res.json({ message: "Donor profile saved", donorId: "D-" + donorDbId });
     } catch (err) {
-        console.error("Donor registration error:", err);
+        console.error("Donor save error:", err);
         res.status(500).json({ error: "Failed to register donor" });
     }
-});
+};
 
-app.get("/api/donors/search", (req, res) => {
+app.post("/api/donors", authMiddleware, saveDonorHandler);
+app.post("/api/donors/register", authMiddleware, saveDonorHandler);
+
+// Search donors
+app.get("/api/donors", (req, res) => {
     try {
-        const { blood_group, city } = req.query;
-        let query = "SELECT id, name, blood_group, city, is_available, last_donation_date, created_at FROM donors WHERE is_available=1";
+        const { bloodGroup, blood_group, city } = req.query;
+        const group = bloodGroup || blood_group;
+        let query = "SELECT id, name, age, blood_group, city, contact, is_available, last_donation_date FROM donors WHERE is_available=1";
         const params = [];
 
-        if (blood_group) {
+        if (group) {
             query += " AND blood_group=?";
-            params.push(blood_group);
+            params.push(group);
         }
-        if (city) {
+        if (city && city.trim()) {
             query += " AND LOWER(city) LIKE ?";
             params.push(`%${city.trim().toLowerCase()}%`);
         }
         query += " ORDER BY created_at DESC LIMIT 50";
 
-        const donors = db.prepare(query).all(...params);
-        res.json({ donors });
+        const rows = db.prepare(query).all(...params);
+        const donors = rows.map(r => ({
+            id: "D-" + r.id,
+            dbId: r.id,
+            name: r.name,
+            age: r.age,
+            bloodGroup: r.blood_group,
+            city: r.city,
+            phone: r.contact,
+            available: r.is_available === 1,
+            lastDonation: r.last_donation_date
+        }));
+        res.json(donors);
     } catch (err) {
         res.status(500).json({ error: "Search failed" });
     }
 });
 
+app.get("/api/donors/mine", authMiddleware, (req, res) => {
+    try {
+        const rows = db.prepare("SELECT * FROM donors WHERE user_id=?").all(req.user.id);
+        const donors = rows.map(r => ({
+            id: "D-" + r.id,
+            dbId: r.id,
+            name: r.name,
+            age: r.age,
+            bloodGroup: r.blood_group,
+            city: r.city,
+            phone: r.contact,
+            available: r.is_available === 1,
+            lastDonation: r.last_donation_date
+        }));
+        res.json(donors);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to load donor history" });
+    }
+});
+
 /* =========================================================================
-   BLOOD REQUESTS & NOTIFICATIONS
+   BLOOD REQUESTS & NOTIFICATIONS (Exact Match For script.js)
    ========================================================================= */
 
 app.post("/api/requests", authMiddleware, (req, res) => {
     try {
-        const { patient_name, blood_group, units, hospital, city, contact_phone, required_by, urgency } = req.body;
-        if (!patient_name || !blood_group || !units || !hospital || !city || !contact_phone || !required_by) {
-            return res.status(400).json({ error: "All request fields are required" });
+        const { patient, patient_name, bloodGroup, blood_group, units, hospital, city, phone, contact_phone, neededBy, required_by, urgency } = req.body;
+        const pat = patient || patient_name;
+        const group = bloodGroup || blood_group;
+        const ph = phone || contact_phone;
+        const dateReq = neededBy || required_by || new Date().toISOString().slice(0, 10);
+
+        if (!pat || !group || !hospital || !city || !ph) {
+            return res.status(400).json({ error: "Required fields missing" });
         }
 
         const info = db.prepare(`
@@ -364,44 +355,49 @@ app.post("/api/requests", authMiddleware, (req, res) => {
             VALUES(?,?,?,?,?,?,?,?,?)
         `).run(
             req.user.id,
-            patient_name.trim(),
-            blood_group,
-            Number(units),
+            pat.trim(),
+            group,
+            Number(units || 1),
             hospital.trim(),
             city.trim(),
-            contact_phone.trim(),
-            required_by,
+            ph.trim(),
+            dateReq,
             urgency || "Normal"
         );
 
-        const requestId = info.lastInsertRowid;
-        const compatibleGroups = CAN_RECEIVE_FROM[blood_group] || [blood_group];
+        const reqId = info.lastInsertRowid;
+        const compatibleGroups = CAN_RECEIVE_FROM[group] || [group];
         const placeholders = compatibleGroups.map(() => "?").join(",");
 
-        const matchingDonors = db.prepare(`
-            SELECT id, user_id FROM donors
+        const matched = db.prepare(`
+            SELECT id, user_id, name, blood_group, city, contact, is_available
+            FROM donors
             WHERE is_available=1
               AND LOWER(city)=?
               AND blood_group IN (${placeholders})
         `).all(city.trim().toLowerCase(), ...compatibleGroups);
 
         const notifyStmt = db.prepare(`
-            INSERT INTO notifications(recipient_id, request_id, message)
-            VALUES(?, ?, ?)
+            INSERT INTO notifications(recipient_id, request_id, message, status)
+            VALUES(?, ?, ?, 'pending')
         `);
 
-        for (const donor of matchingDonors) {
-            notifyStmt.run(
-                donor.user_id,
-                requestId,
-                `Urgent: ${blood_group} blood needed for ${patient_name} at ${hospital}, ${city}.`
-            );
+        for (const donor of matched) {
+            notifyStmt.run(donor.user_id, reqId, `Urgent request for ${group} at ${hospital}`);
         }
 
         res.json({
-            message: `Blood request submitted. ${matchingDonors.length} compatible donor(s) notified.`,
-            requestId,
-            notifiedDonorsCount: matchingDonors.length
+            message: "Request registered",
+            code: "REQ-" + reqId,
+            notified: matched.length,
+            matched: matched.map(m => ({
+                id: "D-" + m.id,
+                name: m.name,
+                bloodGroup: m.blood_group,
+                city: m.city,
+                phone: m.contact,
+                available: m.is_available === 1
+            }))
         });
     } catch (err) {
         console.error("Create request error:", err);
@@ -409,103 +405,159 @@ app.post("/api/requests", authMiddleware, (req, res) => {
     }
 });
 
-app.get("/api/requests/my", authMiddleware, (req, res) => {
-    const requests = db.prepare(`
-        SELECT * FROM blood_requests WHERE requester_id=? ORDER BY created_at DESC
-    `).all(req.user.id);
-    res.json({ requests });
+const getMyRequestsHandler = (req, res) => {
+    try {
+        const requests = db.prepare("SELECT * FROM blood_requests WHERE requester_id=? ORDER BY created_at DESC").all(req.user.id);
+        const result = requests.map(r => {
+            const acceptedDonors = db.prepare(`
+                SELECT d.name, d.contact AS phone
+                FROM donations dn
+                JOIN donors d ON dn.donor_id = d.id
+                WHERE dn.request_id = ?
+            `).all(r.id);
+
+            const notifs = db.prepare("SELECT status FROM notifications WHERE request_id=?").all(r.id);
+            const counts = {
+                total: notifs.length,
+                pending: notifs.filter(n => n.status === "pending" || n.status === "unread").length,
+                accepted: acceptedDonors.length,
+                declined: notifs.filter(n => n.status === "declined").length
+            };
+
+            return {
+                dbId: r.id,
+                code: "REQ-" + r.id,
+                patient: r.patient_name,
+                bloodGroup: r.blood_group,
+                units: r.units,
+                hospital: r.hospital,
+                city: r.city,
+                neededBy: r.required_by,
+                urgency: r.urgency,
+                status: r.status === "open" ? "Open" : "Fulfilled",
+                counts,
+                acceptedDonors
+            };
+        });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to load requests" });
+    }
+};
+
+app.get("/api/requests/mine", authMiddleware, getMyRequestsHandler);
+app.get("/api/requests/my", authMiddleware, getMyRequestsHandler);
+
+app.post("/api/requests/:id/fulfill", authMiddleware, (req, res) => {
+    try {
+        db.prepare("UPDATE blood_requests SET status='fulfilled' WHERE id=? AND requester_id=?").run(req.params.id, req.user.id);
+        res.json({ message: "Request marked fulfilled" });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to update request" });
+    }
 });
 
 app.get("/api/notifications", authMiddleware, (req, res) => {
-    const notifications = db.prepare(`
-        SELECT n.*, r.patient_name, r.blood_group, r.units, r.hospital, r.city, r.contact_phone, r.urgency
-        FROM notifications n
-        JOIN blood_requests r ON n.request_id = r.id
-        WHERE n.recipient_id = ?
-        ORDER BY n.created_at DESC
-    `).all(req.user.id);
-    res.json({ notifications });
+    try {
+        const rows = db.prepare(`
+            SELECT n.id, n.status, r.patient_name, r.blood_group, r.units, r.hospital, r.city, r.contact_phone, r.required_by, r.urgency
+            FROM notifications n
+            JOIN blood_requests r ON n.request_id = r.id
+            WHERE n.recipient_id = ?
+            ORDER BY n.created_at DESC
+        `).all(req.user.id);
+
+        const list = rows.map(r => ({
+            id: r.id,
+            status: r.status === "unread" ? "pending" : r.status,
+            request: {
+                patient: r.patient_name,
+                bloodGroup: r.blood_group,
+                units: r.units,
+                hospital: r.hospital,
+                city: r.city,
+                phone: r.contact_phone,
+                neededBy: r.required_by,
+                urgency: r.urgency
+            }
+        }));
+        res.json(list);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to load notifications" });
+    }
 });
 
 app.post("/api/notifications/:id/respond", authMiddleware, (req, res) => {
     try {
-        const { action } = req.body;
-        if (!["accepted", "declined"].includes(action)) {
-            return res.status(400).json({ error: "Action must be accepted or declined" });
-        }
-
+        const status = req.body.status || req.body.action;
         const notif = db.prepare("SELECT * FROM notifications WHERE id=? AND recipient_id=?").get(req.params.id, req.user.id);
         if (!notif) return res.status(404).json({ error: "Notification not found" });
 
-        db.prepare("UPDATE notifications SET status='read' WHERE id=?").run(notif.id);
+        db.prepare("UPDATE notifications SET status=? WHERE id=?").run(status, notif.id);
 
-        if (action === "accepted") {
+        if (status === "accepted") {
             const donor = db.prepare("SELECT id FROM donors WHERE user_id=?").get(req.user.id);
             if (donor) {
-                db.prepare(`
-                    INSERT INTO donations(donor_id, request_id, status)
-                    VALUES(?, ?, 'committed')
-                `).run(donor.id, notif.request_id);
+                db.prepare("INSERT INTO donations(donor_id, request_id, status) VALUES(?,?, 'committed')")
+                    .run(donor.id, notif.request_id);
             }
         }
-
-        res.json({ message: `Request ${action}` });
+        res.json({ message: "Response recorded" });
     } catch (err) {
         res.status(500).json({ error: "Failed to respond" });
     }
 });
 
 /* =========================================================================
-   EMERGENCY BROADCAST
+   ADMIN DASHBOARD (Exact Match For script.js)
    ========================================================================= */
 
-app.post("/api/emergency", (req, res) => {
+app.get("/api/admin/summary", adminMiddleware, (req, res) => {
     try {
-        const { blood_group, city, hospital, contact_phone } = req.body;
-        if (!blood_group || !city || !hospital || !contact_phone) {
-            return res.status(400).json({ error: "All emergency fields are required" });
-        }
+        const users = db.prepare("SELECT name, email, role FROM users ORDER BY created_at DESC").all();
+        const donorsRows = db.prepare("SELECT id, name, blood_group, city, contact, is_available FROM donors ORDER BY created_at DESC").all();
+        const requestsRows = db.prepare("SELECT id, patient_name, blood_group, city, urgency, status FROM blood_requests ORDER BY created_at DESC").all();
+        const acceptedCount = db.prepare("SELECT COUNT(*) AS c FROM donations").get().c;
 
-        const compatibleGroups = CAN_RECEIVE_FROM[blood_group] || [blood_group];
-        const placeholders = compatibleGroups.map(() => "?").join(",");
+        const donors = donorsRows.map(d => ({
+            dbId: d.id,
+            id: "D-" + d.id,
+            name: d.name,
+            bloodGroup: d.blood_group,
+            city: d.city,
+            phone: d.contact,
+            available: d.is_available === 1
+        }));
 
-        const donors = db.prepare(`
-            SELECT name, blood_group, city, contact
-            FROM donors
-            WHERE is_available=1
-              AND LOWER(city)=?
-              AND blood_group IN (${placeholders})
-            LIMIT 15
-        `).all(city.trim().toLowerCase(), ...compatibleGroups);
+        const requests = requestsRows.map(r => ({
+            dbId: r.id,
+            code: "REQ-" + r.id,
+            patient: r.patient_name,
+            bloodGroup: r.blood_group,
+            city: r.city,
+            urgency: r.urgency,
+            status: r.status === "open" ? "Open" : "Fulfilled"
+        }));
 
-        res.json({
-            message: `Emergency search completed. ${donors.length} matching donors available.`,
-            donors
-        });
+        res.json({ users, donors, requests, accepted: acceptedCount });
     } catch (err) {
-        res.status(500).json({ error: "Emergency lookup failed" });
+        res.status(500).json({ error: "Admin summary failed" });
     }
 });
 
-/* =========================================================================
-   ADMIN DASHBOARD
-   ========================================================================= */
-
-app.get("/api/admin/stats", adminMiddleware, (req, res) => {
+app.delete("/api/admin/:kind/:id", adminMiddleware, (req, res) => {
     try {
-        const totalUsers = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
-        const totalDonors = db.prepare("SELECT COUNT(*) AS count FROM donors").get().count;
-        const totalRequests = db.prepare("SELECT COUNT(*) AS count FROM blood_requests").get().count;
-        const recentUsers = db.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC LIMIT 10").all();
-        const recentRequests = db.prepare("SELECT * FROM blood_requests ORDER BY created_at DESC LIMIT 10").all();
-
-        res.json({
-            stats: { totalUsers, totalDonors, totalRequests },
-            recentUsers,
-            recentRequests
-        });
+        const { kind, id } = req.params;
+        if (kind === "donors") {
+            db.prepare("DELETE FROM donors WHERE id=?").run(id);
+        } else if (kind === "requests") {
+            db.prepare("DELETE FROM blood_requests WHERE id=?").run(id);
+        } else {
+            return res.status(400).json({ error: "Invalid kind" });
+        }
+        res.json({ message: "Deleted successfully" });
     } catch (err) {
-        res.status(500).json({ error: "Failed to fetch admin stats" });
+        res.status(500).json({ error: "Failed to delete" });
     }
 });
 
