@@ -518,9 +518,14 @@ app.post("/api/notifications/:id/respond", authMiddleware, (req, res) => {
    ADMIN DASHBOARD (Exact Match For script.js)
    ========================================================================= */
 
+/* =========================================================================
+   ADMIN DASHBOARD ROUTES
+   ========================================================================= */
+
 app.get("/api/admin/summary", adminMiddleware, (req, res) => {
     try {
-        const users = db.prepare("SELECT name, email, role FROM users ORDER BY created_at DESC").all();
+        // ID include karna mandatory hai taaki delete action trigger ho sake
+        const users = db.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
         const donorsRows = db.prepare("SELECT id, name, blood_group, city, contact, is_available FROM donors ORDER BY created_at DESC").all();
         const requestsRows = db.prepare("SELECT id, patient_name, blood_group, city, urgency, status FROM blood_requests ORDER BY created_at DESC").all();
         const acceptedCount = db.prepare("SELECT COUNT(*) AS c FROM donations").get().c;
@@ -547,7 +552,37 @@ app.get("/api/admin/summary", adminMiddleware, (req, res) => {
 
         res.json({ users, donors, requests, accepted: acceptedCount });
     } catch (err) {
-        res.status(500).json({ error: "Admin summary failed" });
+        console.error("Admin summary fetch error:", err);
+        res.status(500).json({ error: "Failed to load admin summary" });
+    }
+});
+
+app.delete("/api/admin/:kind/:id", adminMiddleware, (req, res) => {
+    try {
+        const { kind, id } = req.params;
+        const targetId = Number(id);
+
+        if (kind === "donors") {
+            db.prepare("DELETE FROM donors WHERE id=?").run(targetId);
+        } else if (kind === "requests") {
+            db.prepare("DELETE FROM blood_requests WHERE id=?").run(targetId);
+        } else if (kind === "users") {
+            // Admin khud ko delete na kar sake
+            if (targetId === req.user.id) {
+                return res.status(400).json({ error: "You cannot delete your own admin account." });
+            }
+            // User se associated donor record aur notifications cleanup
+            db.prepare("DELETE FROM donors WHERE user_id=?").run(targetId);
+            db.prepare("DELETE FROM notifications WHERE recipient_id=?").run(targetId);
+            db.prepare("DELETE FROM users WHERE id=?").run(targetId);
+        } else {
+            return res.status(400).json({ error: "Invalid entity kind" });
+        }
+
+        res.json({ message: "Record deleted successfully" });
+    } catch (err) {
+        console.error("Admin delete error:", err);
+        res.status(500).json({ error: "Failed to delete record" });
     }
 });
 

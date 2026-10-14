@@ -549,69 +549,97 @@ async function renderHistory() {
 }
 
 /* ---------- Admin Control Panel ---------- */
+/* ---------- Admin Dashboard & User Management ---------- */
 async function renderAdmin() {
     const box = document.getElementById("adminContent");
     if (!box) return;
-    const data = await api("/admin/summary");
-    const donorRows = data.donors.map(d => `
-        <tr>
-            <td><strong>#${esc(d.id)}</strong></td>
-            <td>${esc(d.name)}</td>
-            <td><span class="blood-badge-inline">${esc(d.bloodGroup)}</span></td>
-            <td>${esc(d.city)}</td>
-            <td>${esc(d.phone)}</td>
-            <td><span class="status ${d.available ? 'ok' : 'wait'}">${d.available ? "Available" : "Donated"}</span></td>
-            <td><button type="button" class="small delete-btn" onclick="adminDelete('donors',${d.dbId})">Remove</button></td>
-        </tr>`).join("");
-    const requestRows = data.requests.map(r => `
-        <tr>
-            <td><strong>${esc(r.code)}</strong></td>
-            <td>${esc(r.patient)}</td>
-            <td><span class="blood-badge-inline">${esc(r.bloodGroup)}</span></td>
-            <td>${esc(r.city)}</td>
-            <td><span class="status wait">${esc(r.urgency)}</span></td>
-            <td><span class="status ok">${esc(r.status)}</span></td>
-            <td><button type="button" class="small delete-btn" onclick="adminDelete('requests',${r.dbId})">Remove</button></td>
-        </tr>`).join("");
-    const userRows = data.users.map(u => `
-        <tr>
-            <td><strong>${esc(u.name)}</strong></td>
-            <td>${esc(u.email)}</td>
-            <td><span class="status ok">${esc(ROLE_LABELS[u.role] || u.role)}</span></td>
-        </tr>`).join("");
 
-    box.innerHTML = `
-        <div class="stats" style="margin: 0 0 30px 0;">
-            <div><h2>${data.users.length}</h2><p>Total Users</p></div>
-            <div><h2>${data.donors.length}</h2><p>Registered Donors</p></div>
-            <div><h2>${data.requests.length}</h2><p>Total Requests</p></div>
-            <div><h2>${data.accepted}</h2><p>Accepted Donors</p></div>
-        </div>
-        <h3 style="margin-top:20px;">Active Donors</h3>
-        <div style="overflow-x:auto;">
-            <table>
-                <thead><tr><th>ID</th><th>Name</th><th>Group</th><th>City</th><th>Phone</th><th>Status</th><th>Action</th></tr></thead>
-                <tbody>${donorRows || "<tr><td colspan='7' style='text-align:center;'>No donors registered.</td></tr>"}</tbody>
-            </table>
-        </div>
-        <h3 style="margin-top:30px;">Emergency Requests</h3>
-        <div style="overflow-x:auto;">
-            <table>
-                <thead><tr><th>Code</th><th>Patient</th><th>Group</th><th>City</th><th>Urgency</th><th>Status</th><th>Action</th></tr></thead>
-                <tbody>${requestRows || "<tr><td colspan='7' style='text-align:center;'>No requests found.</td></tr>"}</tbody>
-            </table>
-        </div>
-        <h3 style="margin-top:30px;">Registered Users</h3>
-        <div style="overflow-x:auto;">
-            <table>
-                <thead><tr><th>Full Name</th><th>Email</th><th>Role</th></tr></thead>
-                <tbody>${userRows}</tbody>
-            </table>
-        </div>`;
+    box.innerHTML = `<p style="padding: 20px; color: var(--muted);">Loading dashboard data...</p>`;
+
+    try {
+        const data = await api("/admin/summary");
+
+        const donorRows = data.donors.map(d => `
+            <tr>
+                <td><strong>${esc(d.id)}</strong></td>
+                <td>${esc(d.name)}</td>
+                <td><span class="blood-badge-inline">${esc(d.bloodGroup)}</span></td>
+                <td>${esc(d.city)}</td>
+                <td>${esc(d.phone)}</td>
+                <td><span class="status ${d.available ? 'ok' : 'wait'}">${d.available ? "Available" : "Donated"}</span></td>
+                <td><button type="button" class="small delete-btn" onclick="adminDelete('donors', ${d.dbId})">Remove</button></td>
+            </tr>`).join("");
+
+        const requestRows = data.requests.map(r => `
+            <tr>
+                <td><strong>${esc(r.code)}</strong></td>
+                <td>${esc(r.patient)}</td>
+                <td><span class="blood-badge-inline">${esc(r.bloodGroup)}</span></td>
+                <td>${esc(r.city)}</td>
+                <td><span class="status wait">${esc(r.urgency)}</span></td>
+                <td><span class="status ok">${esc(r.status)}</span></td>
+                <td><button type="button" class="small delete-btn" onclick="adminDelete('requests', ${r.dbId})">Remove</button></td>
+            </tr>`).join("");
+
+        const userRows = data.users.map(u => `
+            <tr>
+                <td><strong>${esc(u.name)}</strong></td>
+                <td>${esc(u.email)}</td>
+                <td><span class="status ok">${esc(ROLE_LABELS[u.role] || u.role)}</span></td>
+                <td>
+                    ${(me && u.email === me.email) 
+                        ? '<span style="font-size: 11.5px; font-weight:700; color: #16a34a;">Active Admin</span>' 
+                        : `<button type="button" class="small delete-btn" onclick="adminDelete('users', ${u.id})">Remove User</button>`}
+                </td>
+            </tr>`).join("");
+
+        box.innerHTML = `
+            <div class="stats" style="margin-bottom: 24px;">
+                <div><h2>${data.users.length}</h2><p>Registered Users</p></div>
+                <div><h2>${data.donors.length}</h2><p>Active Donors</p></div>
+                <div><h2>${data.requests.length}</h2><p>Total Requests</p></div>
+                <div><h2>${data.accepted}</h2><p>Accepted Lives Saved</p></div>
+            </div>
+
+            <h3 style="margin-top: 24px; font-size: 16px;">👥 Registered Users</h3>
+            <div style="overflow-x:auto; margin-bottom: 24px;">
+                <table>
+                    <thead>
+                        <tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>${userRows || "<tr><td colspan='4'>No users registered yet.</td></tr>"}</tbody>
+                </table>
+            </div>
+
+            <h3 style="margin-top: 24px; font-size: 16px;">🩸 Registered Donors</h3>
+            <div style="overflow-x:auto; margin-bottom: 24px;">
+                <table>
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Group</th><th>City</th><th>Phone</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>${donorRows || "<tr><td colspan='7'>No donors found.</td></tr>"}</tbody>
+                </table>
+            </div>
+
+            <h3 style="margin-top: 24px; font-size: 16px;">📢 Blood Requests</h3>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr><th>Code</th><th>Patient</th><th>Group</th><th>City</th><th>Urgency</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>${requestRows || "<tr><td colspan='7'>No requests logged.</td></tr>"}</tbody>
+                </table>
+            </div>
+        `;
+    } catch (err) {
+        box.innerHTML = `<p style="color: #dc2626; padding: 20px;">⚠️ Error loading admin data: ${esc(err.message)}</p>`;
+    }
 }
 
 async function adminDelete(kind, id) {
-    if (!confirm("Are you sure you want to delete this record permanently?")) return;
+    const label = kind === 'users' ? 'user account' : (kind === 'donors' ? 'donor entry' : 'request');
+    if (!confirm(`Are you sure you want to delete this ${label} permanently?`)) return;
+
     try {
         await api("/admin/" + kind + "/" + id, { method: "DELETE" });
         showToast("Record removed successfully.", "success");
