@@ -48,6 +48,18 @@ const CAN_RECEIVE_FROM = {
     }
 })();
 
+/* ---------- Safe Database Schema Auto-Migration ---------- */
+try {
+    const tableInfo = db.prepare("PRAGMA table_info(blood_requests)").all();
+    const hasStatus = tableInfo.some(col => col.name === "status");
+    if (!hasStatus) {
+        db.prepare("ALTER TABLE blood_requests ADD COLUMN status TEXT DEFAULT 'open'").run();
+        console.log("✅ Auto-migrated: Added missing 'status' column to blood_requests table.");
+    }
+} catch (migErr) {
+    console.error("Migration check error:", migErr.message);
+}
+
 const app = express();
 app.set("trust proxy", 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -91,12 +103,9 @@ function adminMiddleware(req, res, next) {
 }
 
 /* =========================================================================
-   AUTH ROUTES (Exact Match For script.js)
+   AUTH ROUTES
    ========================================================================= */
 
-// Signup -> stores in pending table and sends 6-digit OTP
-// server.js ke andar signup handler:
-// Signup -> Send OTP without blocking the HTTP response
 const signupHandler = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
@@ -124,7 +133,7 @@ const signupHandler = async (req, res) => {
             VALUES(?,?,?,?,?,?)
         `).run(cleanEmail, name.trim(), passwordHash, assignedRole, otp, expiresAt);
 
-        // Non-blocking trigger: Browser response turant jayega
+        // Non-blocking trigger: Instant response
         sendOtpEmail(cleanEmail, otp).catch(e => console.error("Email send error:", e.message));
 
         res.json({ message: "Verification code sent to your email" });
@@ -137,7 +146,6 @@ const signupHandler = async (req, res) => {
 app.post("/api/auth/signup", signupHandler);
 app.post("/api/auth/register-request", signupHandler);
 
-// Verify OTP -> creates user in users table
 const verifyOtpHandler = async (req, res) => {
     try {
         const { email, otp } = req.body;
@@ -186,7 +194,6 @@ app.post("/api/auth/resend-otp", async (req, res) => {
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
         db.prepare("UPDATE pending_registrations SET otp=?, expires_at=? WHERE email=?").run(otp, expiresAt, cleanEmail);
 
-        // Non-blocking trigger
         sendOtpEmail(cleanEmail, otp).catch(e => console.error("Resend error:", e.message));
 
         res.json({ message: "A new OTP has been sent." });
@@ -241,7 +248,7 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 });
 
 /* =========================================================================
-   DONORS ROUTES (Exact Match For script.js)
+   DONORS ROUTES
    ========================================================================= */
 
 const saveDonorHandler = (req, res) => {
@@ -284,7 +291,6 @@ const saveDonorHandler = (req, res) => {
 app.post("/api/donors", authMiddleware, saveDonorHandler);
 app.post("/api/donors/register", authMiddleware, saveDonorHandler);
 
-// Search donors
 app.get("/api/donors", (req, res) => {
     try {
         const { bloodGroup, blood_group, city } = req.query;
@@ -341,7 +347,7 @@ app.get("/api/donors/mine", authMiddleware, (req, res) => {
 });
 
 /* =========================================================================
-   BLOOD REQUESTS & NOTIFICATIONS (Exact Match For script.js)
+   BLOOD REQUESTS & NOTIFICATIONS
    ========================================================================= */
 
 app.post("/api/requests", authMiddleware, (req, res) => {
@@ -440,7 +446,7 @@ const getMyRequestsHandler = (req, res) => {
                 city: r.city,
                 neededBy: r.required_by,
                 urgency: r.urgency,
-                status: r.status === "open" ? "Open" : "Fulfilled",
+                status: (r.status && r.status.toLowerCase() === "fulfilled") ? "Fulfilled" : "Open",
                 counts,
                 acceptedDonors
             };
@@ -515,20 +521,19 @@ app.post("/api/notifications/:id/respond", authMiddleware, (req, res) => {
 });
 
 /* =========================================================================
-   ADMIN DASHBOARD (Exact Match For script.js)
-   ========================================================================= */
-
-/* =========================================================================
-   ADMIN DASHBOARD ROUTES
+   ADMIN DASHBOARD ROUTES (Single Source of Truth)
    ========================================================================= */
 
 app.get("/api/admin/summary", adminMiddleware, (req, res) => {
     try {
-        // ID include karna mandatory hai taaki delete action trigger ho sake
         const users = db.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
         const donorsRows = db.prepare("SELECT id, name, blood_group, city, contact, is_available FROM donors ORDER BY created_at DESC").all();
-        const requestsRows = db.prepare("SELECT id, patient_name, blood_group, city, urgency, status FROM blood_requests ORDER BY created_at DESC").all();
-        const acceptedCount = db.prepare("SELECT COUNT(*) AS c FROM donations").get().c;
+        const requestsRows = db.prepare("SELECT * FROM blood_requests ORDER BY created_at DESC").all();
+        
+        let acceptedCount = 0;
+        try {
+            acceptedCount = db.prepare("SELECT COUNT(*) AS c FROM donations").get().c;
+        } catch (_) {}
 
         const donors = donorsRows.map(d => ({
             dbId: d.id,
@@ -546,14 +551,14 @@ app.get("/api/admin/summary", adminMiddleware, (req, res) => {
             patient: r.patient_name,
             bloodGroup: r.blood_group,
             city: r.city,
-            urgency: r.urgency,
-            status: r.status === "open" ? "Open" : "Fulfilled"
+            urgency: r.urgency || "Normal",
+            status: (r.status && r.status.toLowerCase() === "fulfilled") ? "Fulfilled" : "Open"
         }));
 
         res.json({ users, donors, requests, accepted: acceptedCount });
     } catch (err) {
         console.error("Admin summary fetch error:", err);
-        res.status(500).json({ error: "Failed to load admin summary" });
+        res.status(500).json({ error: "Failed to load admin summary: " + err.message });
     }
 });
 
@@ -567,11 +572,9 @@ app.delete("/api/admin/:kind/:id", adminMiddleware, (req, res) => {
         } else if (kind === "requests") {
             db.prepare("DELETE FROM blood_requests WHERE id=?").run(targetId);
         } else if (kind === "users") {
-            // Admin khud ko delete na kar sake
             if (targetId === req.user.id) {
                 return res.status(400).json({ error: "You cannot delete your own admin account." });
             }
-            // User se associated donor record aur notifications cleanup
             db.prepare("DELETE FROM donors WHERE user_id=?").run(targetId);
             db.prepare("DELETE FROM notifications WHERE recipient_id=?").run(targetId);
             db.prepare("DELETE FROM users WHERE id=?").run(targetId);
@@ -583,22 +586,6 @@ app.delete("/api/admin/:kind/:id", adminMiddleware, (req, res) => {
     } catch (err) {
         console.error("Admin delete error:", err);
         res.status(500).json({ error: "Failed to delete record" });
-    }
-});
-
-app.delete("/api/admin/:kind/:id", adminMiddleware, (req, res) => {
-    try {
-        const { kind, id } = req.params;
-        if (kind === "donors") {
-            db.prepare("DELETE FROM donors WHERE id=?").run(id);
-        } else if (kind === "requests") {
-            db.prepare("DELETE FROM blood_requests WHERE id=?").run(id);
-        } else {
-            return res.status(400).json({ error: "Invalid kind" });
-        }
-        res.json({ message: "Deleted successfully" });
-    } catch (err) {
-        res.status(500).json({ error: "Failed to delete" });
     }
 });
 
