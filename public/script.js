@@ -1,4 +1,4 @@
-/* Smart Blood Donor Network - Frontend JS */
+/* Smart Blood Donor Network - Frontend Client Engine */
 let me = null;
 let pendingEmail = null;
 let resendTimer = null;
@@ -11,7 +11,7 @@ const ROLE_LABELS = {
 
 const LOGIN_REQUIRED = ["register-donor", "request-blood", "my-requests", "notifications", "emergency"];
 
-/* ---------- Helpers & Popup (Toast) ---------- */
+/* ---------- Helpers & Modern Toast System ---------- */
 async function api(path, options = {}) {
     const init = { 
         method: options.method || "GET", 
@@ -26,7 +26,7 @@ async function api(path, options = {}) {
     try {
         res = await fetch("/api" + path, init);
     } catch (networkErr) {
-        throw new Error("Cannot connect to server. Check your network or server status.");
+        throw new Error("Cannot connect to server. Check your network status.");
     }
 
     let data = null;
@@ -49,7 +49,7 @@ function esc(text) {
     return div.innerHTML;
 }
 
-function showToast(message, type) {
+function showToast(message, type = "error") {
     let toast = document.getElementById("toast");
     if (!toast) {
         toast = document.createElement("div");
@@ -57,8 +57,11 @@ function showToast(message, type) {
         toast.setAttribute("role", "status");
         document.body.appendChild(toast);
     }
-    toast.textContent = message;
-    toast.className = "show " + (type || "error");
+    
+    const icon = type === "success" ? "✅" : "⚠️";
+    toast.innerHTML = `<span style="font-size:16px;">${icon}</span> <span>${esc(message)}</span>`;
+    toast.className = `show ${type}`;
+    
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(() => { 
         toast.className = ""; 
@@ -67,17 +70,25 @@ function showToast(message, type) {
 
 async function guarded(form, handler) {
     const btn = form ? form.querySelector("button[type=submit]") : null;
-    if (btn) btn.disabled = true;
+    if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = "0.7";
+        btn.style.cursor = "not-allowed";
+    }
     try {
         await handler();
     } catch (err) {
         showToast(err.message, "error");
     } finally {
-        if (btn) btn.disabled = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
+        }
     }
 }
 
-/* ---------- Session & UI ---------- */
+/* ---------- Session & Dynamic Header State ---------- */
 async function refreshMe() {
     try {
         me = (await api("/auth/me")).user;
@@ -110,23 +121,26 @@ function updateAuthUI() {
     }
 }
 
-/* ---------- Navigation ---------- */
+/* ---------- Smooth Section Navigation ---------- */
 async function showSection(id) {
     if (!document.getElementById(id)) id = "home";
 
     if (LOGIN_REQUIRED.includes(id) && !me) {
-        showToast("Please log in first.", "error");
+        showToast("Please log in first to continue.", "error");
         id = "login";
     }
     if (id === "verify-otp" && !pendingEmail) id = "signup";
     if (id === "admin" && (!me || me.role !== "admin")) {
-        showToast("Admin access only.", "error");
+        showToast("Admin privileges required.", "error");
         id = me ? "home" : "login";
     }
 
     document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
     const target = document.getElementById(id);
-    if (target) target.classList.remove("hidden");
+    if (target) {
+        target.classList.remove("hidden");
+        target.style.animation = "fadeScale 0.25s ease-out";
+    }
 
     if (location.hash !== "#" + id) history.replaceState(null, "", "#" + id);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -147,14 +161,14 @@ window.addEventListener("hashchange", () => {
     showSection(location.hash.replace("#", "") || "home");
 });
 
-/* ---------- Sign Up & OTP ---------- */
+/* ---------- Sign Up & OTP Flow ---------- */
 function startResendCooldown(seconds) {
     const btn = document.getElementById("resendOtpBtn");
     if (!btn) return;
     let left = seconds || 60;
     clearInterval(resendTimer);
     btn.disabled = true;
-    btn.textContent = "Resend OTP (" + left + "s)";
+    btn.textContent = `Resend OTP (${left}s)`;
 
     resendTimer = setInterval(() => {
         left--;
@@ -163,7 +177,7 @@ function startResendCooldown(seconds) {
             btn.disabled = false;
             btn.textContent = "Resend OTP";
         } else {
-            btn.textContent = "Resend OTP (" + left + "s)";
+            btn.textContent = `Resend OTP (${left}s)`;
         }
     }, 1000);
 }
@@ -200,7 +214,7 @@ document.getElementById("otpForm")?.addEventListener("submit", e => {
         });
         pendingEmail = null;
         e.target.reset();
-        showToast("Email verified! Please log in.", "success");
+        showToast("Email verified! Please sign in.", "success");
         showSection("login");
     });
 });
@@ -209,7 +223,7 @@ document.getElementById("resendOtpBtn")?.addEventListener("click", async () => {
     if (!pendingEmail) return showSection("signup");
     try {
         await api("/auth/resend-otp", { method: "POST", body: { email: pendingEmail } });
-        showToast("A new OTP has been sent.", "success");
+        showToast("A fresh OTP code has been dispatched.", "success");
         startResendCooldown(60);
     } catch (err) {
         showToast(err.message, "error");
@@ -238,7 +252,7 @@ document.getElementById("logoutButton")?.addEventListener("click", async () => {
     try { await api("/auth/logout", { method: "POST" }); } catch (e) { /* ignore */ }
     me = null;
     updateAuthUI();
-    showToast("You have been logged out.", "success");
+    showToast("Signed out successfully.", "success");
     showSection("home");
 });
 
@@ -258,32 +272,53 @@ document.getElementById("donorForm")?.addEventListener("submit", e => {
             }
         });
         e.target.reset();
-        showToast("Registered! Your Donor ID is " + result.donorId, "success");
+        showToast("Successfully registered as donor! ID: " + result.donorId, "success");
         showSection("profile");
     });
 });
 
-/* ---------- Search Donors ---------- */
+/* ---------- Modern Donor Card Rendering ---------- */
 function renderDonorCards(list, boxId) {
     const box = document.getElementById(boxId);
     if (!box) return;
     if (list.length === 0) {
-        box.innerHTML = "<p>No donors found. Try a different blood group or city.</p>";
+        box.innerHTML = `
+            <div style="text-align:center; padding: 24px; color: var(--muted);">
+                <span style="font-size:32px;">🔍</span>
+                <p style="margin-top:8px; font-weight:600;">No donors found matching criteria.</p>
+                <p style="font-size:13px;">Try choosing 'All Blood Groups' or neighbouring cities.</p>
+            </div>`;
         return;
     }
-    box.innerHTML = "<p><strong>" + list.length + "</strong> donor(s) found.</p>" +
-        list.map(d => `
-        <div class="donor-card">
-            <div>
-                <h4>${esc(d.name)} <small>(${esc(d.id)})</small></h4>
-                <p>📍 ${esc(d.city)} &nbsp;|&nbsp; Age: ${esc(d.age)}</p>
-                <p>📞 ${d.phone ? esc(d.phone) : "Login to view contact number"}</p>
-                <span class="status ${d.available ? "ok" : "wait"}">
-                    ${d.available ? "Available to donate" : "Recently donated"}
-                </span>
-            </div>
-            <div class="blood-badge">${esc(d.bloodGroup)}</div>
-        </div>`).join("");
+
+    box.innerHTML = `
+        <div style="margin-bottom:14px; font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;">
+            Matching Donors Available (${list.length})
+        </div>
+        <div class="cards-grid">
+            ${list.map(d => `
+                <div class="donor-card">
+                    <div class="donor-card-header">
+                        <div>
+                            <h4>${esc(d.name)}</h4>
+                            <span class="donor-id">ID: ${esc(d.id)}</span>
+                        </div>
+                        <div class="blood-badge">${esc(d.bloodGroup)}</div>
+                    </div>
+                    <div class="donor-card-body">
+                        <p class="donor-info">📍 <strong>${esc(d.city)}</strong> &nbsp;•&nbsp; Age:${esc(d.age)}</p>
+                        <p class="donor-info">📞 ${d.phone ? `<a href="tel:${esc(d.phone)}" class="donor-phone">${esc(d.phone)}</a>` : '<span style="color:var(--muted); font-size:12px;">Login to view contact</span>'}</p>
+                    </div>
+                    <div class="donor-card-footer">
+                        <span class="status ${d.available ? 'ok' : 'wait'}">
+                            ${d.available ? '● Available to donate' : '○ Recently donated'}
+                        </span>
+                        ${d.phone ? `<a href="tel:${esc(d.phone)}" class="call-btn">Call Now</a>` : ''}
+                    </div>
+                </div>
+            `).join("")}
+        </div>
+    `;
 }
 
 async function searchDonors() {
@@ -317,7 +352,7 @@ document.getElementById("requestForm")?.addEventListener("submit", e => {
         });
         e.target.reset();
         document.getElementById("reqUnits").value = 1;
-        showToast(result.notified + " donor(s) notified (" + result.matched.length + " matched).", "success");
+        showToast(`${result.notified} donor(s) notified (${result.matched.length} matched).`, "success");
         showSection("my-requests");
     });
 });
@@ -327,30 +362,41 @@ async function renderMyRequests() {
     if (!box) return;
     const list = await api("/requests/mine");
     if (list.length === 0) {
-        box.innerHTML = "<p>No requests yet.</p>";
+        box.innerHTML = "<p style='color:var(--muted); padding:10px 0;'>No active blood requests created by you yet.</p>";
         return;
     }
-    box.innerHTML = list.map(r => {
+    box.innerHTML = `<div class="cards-grid">` + list.map(r => {
         const donors = r.acceptedDonors.length
-            ? r.acceptedDonors.map(d => `<p>✅ <strong>${esc(d.name)}</strong> accepted — 📞 ${esc(d.phone)}</p>`).join("")
-            : "<p>No donor has accepted yet.</p>";
+            ? r.acceptedDonors.map(d => `<div class="accepted-pill">✅ <strong>${esc(d.name)}</strong> accepted &nbsp;•&nbsp; 📞 <a href="tel:${esc(d.phone)}">${esc(d.phone)}</a></div>`).join("")
+            : "<p style='color:var(--muted); font-size:13px; margin-top:8px;'>No donor has accepted yet. Network is matching...</p>";
         const closeBtn = (r.status === "Open" || r.status === "Accepted")
-            ? `<button type="button" class="small secondary" onclick="markFulfilled(${r.dbId})">Mark as Fulfilled</button>` : "";
+            ? `<button type="button" class="small secondary" style="margin-top:12px;" onclick="markFulfilled(${r.dbId})">Mark as Fulfilled</button>` : "";
         const urgent = r.urgency !== "Normal" ? `<span class="status wait">${esc(r.urgency)}</span>` : "";
         return `
         <div class="donor-card">
-            <div>
-                <h4>${esc(r.code)} — ${esc(r.patient)} ${urgent}
-                    <span class="status ok">${esc(r.status)}</span></h4>
-                <p>🏥 ${esc(r.hospital)}, ${esc(r.city)} &nbsp;|&nbsp; Units: ${esc(r.units)} &nbsp;|&nbsp; By ${esc(r.neededBy)}</p>
-                <p>Notified: ${r.counts.total} &nbsp;|&nbsp; Pending: ${r.counts.pending} &nbsp;|&nbsp;
-                   Accepted: ${r.counts.accepted} &nbsp;|&nbsp; Declined: ${r.counts.declined}</p>
-                ${donors}
+            <div class="donor-card-header">
+                <div>
+                    <h4>${esc(r.patient)}</h4>
+                    <span class="donor-id">${esc(r.code)} ${urgent}</span>
+                </div>
+                <div class="blood-badge">${esc(r.bloodGroup)}</div>
+            </div>
+            <div class="donor-card-body">
+                <p class="donor-info">🏥 <strong>${esc(r.hospital)}</strong>, ${esc(r.city)}</p>
+                <p class="donor-info">🩸 Units: <strong>${esc(r.units)}</strong> &nbsp;•&nbsp; Needed: <strong>${esc(r.neededBy)}</strong></p>
+                <div class="metrics-pill-row">
+                    <span>Notified: ${r.counts.total}</span>
+                    <span>Accepted: ${r.counts.accepted}</span>
+                    <span>Declined: ${r.counts.declined}</span>
+                </div>
+                <div style="margin-top:10px;">${donors}</div>
+            </div>
+            <div class="donor-card-footer">
+                <span class="status ok">${esc(r.status)}</span>
                 ${closeBtn}
             </div>
-            <div class="blood-badge">${esc(r.bloodGroup)}</div>
         </div>`;
-    }).join("");
+    }).join("") + `</div>`;
 }
 
 async function markFulfilled(id) {
@@ -363,7 +409,7 @@ async function markFulfilled(id) {
     }
 }
 
-/* ---------- Emergency ---------- */
+/* ---------- Emergency Alert Engine ---------- */
 document.getElementById("emergencyForm")?.addEventListener("submit", e => {
     e.preventDefault();
     guarded(e.target, async () => {
@@ -381,41 +427,51 @@ document.getElementById("emergencyForm")?.addEventListener("submit", e => {
         });
         renderDonorCards(result.matched, "emergencyResults");
         document.getElementById("emergencyResults").insertAdjacentHTML("afterbegin",
-            `<p style="margin-bottom:12px;">Emergency request <strong>${esc(result.code)}</strong> sent to ${result.notified} donor(s).</p>`);
-        showToast("Emergency alert sent.", "success");
+            `<div style="background:var(--light-red); border:1px solid var(--border-red); padding:14px; border-radius:var(--radius-md); margin-bottom:16px;">
+                🚨 Emergency request <strong>${esc(result.code)}</strong> broadcasted to <strong>${result.notified}</strong> verified donor(s).
+             </div>`);
+        showToast("Emergency alert broadcasted!", "success");
     });
 });
 
-/* ---------- Notifications ---------- */
+/* ---------- Notifications Inbox ---------- */
 async function renderNotifications() {
     const box = document.getElementById("notificationList");
     if (!box) return;
     const list = await api("/notifications");
     if (list.length === 0) {
-        box.innerHTML = "<p>No donation requests for you right now.</p>";
+        box.innerHTML = "<p style='color:var(--muted); padding:10px 0;'>No emergency donation requests for you right now.</p>";
         return;
     }
-    box.innerHTML = list.map(n => {
+    box.innerHTML = `<div class="cards-grid">` + list.map(n => {
         const r = n.request;
         const urgent = r.urgency !== "Normal" ? `<span class="status wait">${esc(r.urgency)}</span>` : "";
         const actions = n.status === "pending"
-            ? `<button type="button" class="small" onclick="respondToNotification(${n.id},'accepted')">Accept</button>
-               <button type="button" class="small secondary" onclick="respondToNotification(${n.id},'declined')">Decline</button>`
+            ? `<div style="display:flex; gap:8px; margin-top:12px;">
+                <button type="button" class="small" onclick="respondToNotification(${n.id},'accepted')">Accept to Donate</button>
+                <button type="button" class="small secondary" onclick="respondToNotification(${n.id},'declined')">Decline</button>
+               </div>`
             : "";
-        const contact = r.phone ? `<p>📞 Contact: <strong>${esc(r.phone)}</strong></p>` : "";
+        const contact = r.phone ? `<p class="donor-info" style="margin-top:6px;">📞 Contact: <strong>${esc(r.phone)}</strong></p>` : "";
         return `
         <div class="donor-card">
-            <div>
-                <h4>${esc(r.patient)} needs ${esc(r.bloodGroup)} ${urgent}
-                    <span class="status ${n.status === 'accepted' ? 'ok' : 'wait'}">${esc(n.status)}</span></h4>
-                <p>🏥 ${esc(r.hospital)}, ${esc(r.city)} &nbsp;|&nbsp; Units: ${esc(r.units)}</p>
-                <p>📅 Needed by ${esc(r.neededBy)}</p>
-                ${contact}
-                <div style="margin-top:10px;">${actions}</div>
+            <div class="donor-card-header">
+                <div>
+                    <h4>${esc(r.patient)} needs ${esc(r.bloodGroup)} ${urgent}</h4>
+                    <span class="donor-id">Required by ${esc(r.neededBy)}</span>
+                </div>
+                <div class="blood-badge">${esc(r.bloodGroup)}</div>
             </div>
-            <div class="blood-badge">${esc(r.bloodGroup)}</div>
+            <div class="donor-card-body">
+                <p class="donor-info">🏥 ${esc(r.hospital)}, ${esc(r.city)} &nbsp;•&nbsp; Units: ${esc(r.units)}</p>
+                ${contact}
+            </div>
+            <div class="donor-card-footer">
+                <span class="status ${n.status === 'accepted' ? 'ok' : 'wait'}">Status: ${esc(n.status)}</span>
+                ${actions}
+            </div>
         </div>`;
-    }).join("");
+    }).join("") + `</div>`;
 }
 
 async function respondToNotification(id, status) {
@@ -430,7 +486,7 @@ async function respondToNotification(id, status) {
     }
 }
 
-/* ---------- Profile & History ---------- */
+/* ---------- Profile & History Views ---------- */
 async function renderProfile() {
     const box = document.getElementById("profileDetails");
     if (!box) return;
@@ -439,26 +495,30 @@ async function renderProfile() {
         return;
     }
     let html = `
-        <div class="profile-row"><span>Name</span><span>${esc(me.name)}</span></div>
-        <div class="profile-row"><span>Email</span><span>${esc(me.email)}</span></div>
-        <div class="profile-row"><span>Account Type</span><span>${esc(ROLE_LABELS[me.role] || me.role)}</span></div>`;
+        <div class="profile-grid">
+            <div class="profile-row"><span>Name</span><strong>${esc(me.name)}</strong></div>
+            <div class="profile-row"><span>Email</span><strong>${esc(me.email)}</strong></div>
+            <div class="profile-row"><span>Account Type</span><span class="status ok">${esc(ROLE_LABELS[me.role] || me.role)}</span></div>
+        </div>`;
     
     if (me.role !== "admin") {
         const donors = await api("/donors/mine");
         if (donors.length === 0) {
-            html += "<p style='margin-top:12px'>You have not completed donor registration yet.</p>";
+            html += "<p style='margin-top:16px; color:var(--muted);'>You have not registered as an active donor yet.</p>";
         } else {
             donors.forEach(d => {
                 html += `
-                <h3 style="margin-top:20px;">Donor Profile Details</h3>
-                <div class="profile-row"><span>Donor ID</span><span>${esc(d.id)}</span></div>
-                <div class="profile-row"><span>Blood Group</span><span>${esc(d.bloodGroup)}</span></div>
-                <div class="profile-row"><span>City</span><span>${esc(d.city)}</span></div>
-                <div class="profile-row"><span>Phone</span><span>${esc(d.phone)}</span></div>
-                <div class="profile-row"><span>Status</span><span>${d.available ? "Available" : "Recently donated"}</span></div>`;
+                <h3 style="margin-top:24px; font-size:16px; border-bottom:1px solid var(--border); padding-bottom:8px;">Active Donor Registration</h3>
+                <div class="profile-grid" style="margin-top:12px;">
+                    <div class="profile-row"><span>Donor ID</span><strong>${esc(d.id)}</strong></div>
+                    <div class="profile-row"><span>Blood Group</span><span class="blood-badge-inline">${esc(d.bloodGroup)}</span></div>
+                    <div class="profile-row"><span>Location</span><strong>${esc(d.city)}</strong></div>
+                    <div class="profile-row"><span>Contact</span><strong>${esc(d.phone)}</strong></div>
+                    <div class="profile-row"><span>Availability</span><span class="status ${d.available ? 'ok' : 'wait'}">${d.available ? "Available" : "Recently donated"}</span></div>
+                </div>`;
             });
         }
-        html += `<button type="button" class="secondary" onclick="showSection('history')" style="margin-top:14px">View Donation History</button>`;
+        html += `<button type="button" class="secondary" onclick="showSection('history')" style="margin-top:20px;">📜 View Donation History</button>`;
     }
     box.innerHTML = html;
 }
@@ -467,82 +527,101 @@ async function renderHistory() {
     const box = document.getElementById("donationHistory");
     if (!box) return;
     if (!me) {
-        box.innerHTML = "<p>Please log in to see your donation history.</p>";
+        box.innerHTML = "<p>Please log in to view your records.</p>";
         return;
     }
     const records = (await api("/donors/mine")).filter(d => d.lastDonation);
     if (records.length === 0) {
-        box.innerHTML = "<p>No donation history available yet.</p>";
+        box.innerHTML = "<p style='color:var(--muted); padding:10px 0;'>No prior donation dates recorded yet.</p>";
         return;
     }
     box.innerHTML = records.map(d => `
         <div class="donor-card">
-            <div>
-                <h4>Donation recorded</h4>
-                <p>Date: ${esc(d.lastDonation)}</p>
-                <p>Donor ID: ${esc(d.id)}</p>
+            <div class="donor-card-header">
+                <div>
+                    <h4>Donation Recorded</h4>
+                    <p class="donor-info">Donor ID: <strong>${esc(d.id)}</strong></p>
+                    <p class="donor-info">Date: <strong>${esc(d.lastDonation)}</strong></p>
+                </div>
+                <div class="blood-badge">${esc(d.bloodGroup)}</div>
             </div>
-            <div class="blood-badge">${esc(d.bloodGroup)}</div>
         </div>`).join("");
 }
 
-/* ---------- Admin Dashboard ---------- */
+/* ---------- Admin Control Panel ---------- */
 async function renderAdmin() {
     const box = document.getElementById("adminContent");
     if (!box) return;
     const data = await api("/admin/summary");
     const donorRows = data.donors.map(d => `
         <tr>
-            <td>${esc(d.id)}</td><td>${esc(d.name)}</td><td>${esc(d.bloodGroup)}</td>
-            <td>${esc(d.city)}</td><td>${esc(d.phone)}</td>
-            <td>${d.available ? "Available" : "Recently donated"}</td>
-            <td><button type="button" class="small" onclick="adminDelete('donors',${d.dbId})">Delete</button></td>
+            <td><strong>#${esc(d.id)}</strong></td>
+            <td>${esc(d.name)}</td>
+            <td><span class="blood-badge-inline">${esc(d.bloodGroup)}</span></td>
+            <td>${esc(d.city)}</td>
+            <td>${esc(d.phone)}</td>
+            <td><span class="status ${d.available ? 'ok' : 'wait'}">${d.available ? "Available" : "Donated"}</span></td>
+            <td><button type="button" class="small delete-btn" onclick="adminDelete('donors',${d.dbId})">Remove</button></td>
         </tr>`).join("");
     const requestRows = data.requests.map(r => `
         <tr>
-            <td>${esc(r.code)}</td><td>${esc(r.patient)}</td><td>${esc(r.bloodGroup)}</td>
-            <td>${esc(r.city)}</td><td>${esc(r.urgency)}</td><td>${esc(r.status)}</td>
-            <td><button type="button" class="small" onclick="adminDelete('requests',${r.dbId})">Delete</button></td>
+            <td><strong>${esc(r.code)}</strong></td>
+            <td>${esc(r.patient)}</td>
+            <td><span class="blood-badge-inline">${esc(r.bloodGroup)}</span></td>
+            <td>${esc(r.city)}</td>
+            <td><span class="status wait">${esc(r.urgency)}</span></td>
+            <td><span class="status ok">${esc(r.status)}</span></td>
+            <td><button type="button" class="small delete-btn" onclick="adminDelete('requests',${r.dbId})">Remove</button></td>
         </tr>`).join("");
     const userRows = data.users.map(u => `
-        <tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(ROLE_LABELS[u.role] || u.role)}</td></tr>`).join("");
+        <tr>
+            <td><strong>${esc(u.name)}</strong></td>
+            <td>${esc(u.email)}</td>
+            <td><span class="status ok">${esc(ROLE_LABELS[u.role] || u.role)}</span></td>
+        </tr>`).join("");
 
     box.innerHTML = `
-        <div class="stats" style="margin-bottom:20px;">
-            <div><h2>${data.users.length}</h2><p>Users</p></div>
-            <div><h2>${data.donors.length}</h2><p>Donors</p></div>
-            <div><h2>${data.requests.length}</h2><p>Requests</p></div>
-            <div><h2>${data.accepted}</h2><p>Accepted</p></div>
+        <div class="stats" style="margin: 0 0 30px 0;">
+            <div><h2>${data.users.length}</h2><p>Total Users</p></div>
+            <div><h2>${data.donors.length}</h2><p>Registered Donors</p></div>
+            <div><h2>${data.requests.length}</h2><p>Total Requests</p></div>
+            <div><h2>${data.accepted}</h2><p>Accepted Donors</p></div>
         </div>
-        <h3>Donors</h3>
-        <table style="width:100%; border-collapse: collapse; margin-bottom:20px;">
-            <tr><th>ID</th><th>Name</th><th>Group</th><th>City</th><th>Phone</th><th>Status</th><th>Action</th></tr>
-            ${donorRows || "<tr><td colspan='7'>No donors registered.</td></tr>"}
-        </table>
-        <h3>Blood Requests</h3>
-        <table style="width:100%; border-collapse: collapse; margin-bottom:20px;">
-            <tr><th>ID</th><th>Patient</th><th>Group</th><th>City</th><th>Urgency</th><th>Status</th><th>Action</th></tr>
-            ${requestRows || "<tr><td colspan='7'>No requests found.</td></tr>"}
-        </table>
-        <h3>Users</h3>
-        <table style="width:100%; border-collapse: collapse;">
-            <tr><th>Name</th><th>Email</th><th>Role</th></tr>
-            ${userRows}
-        </table>`;
+        <h3 style="margin-top:20px;">Active Donors</h3>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead><tr><th>ID</th><th>Name</th><th>Group</th><th>City</th><th>Phone</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>${donorRows || "<tr><td colspan='7' style='text-align:center;'>No donors registered.</td></tr>"}</tbody>
+            </table>
+        </div>
+        <h3 style="margin-top:30px;">Emergency Requests</h3>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead><tr><th>Code</th><th>Patient</th><th>Group</th><th>City</th><th>Urgency</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>${requestRows || "<tr><td colspan='7' style='text-align:center;'>No requests found.</td></tr>"}</tbody>
+            </table>
+        </div>
+        <h3 style="margin-top:30px;">Registered Users</h3>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead><tr><th>Full Name</th><th>Email</th><th>Role</th></tr></thead>
+                <tbody>${userRows}</tbody>
+            </table>
+        </div>`;
 }
 
 async function adminDelete(kind, id) {
-    if (!confirm("Delete this record permanently?")) return;
+    if (!confirm("Are you sure you want to delete this record permanently?")) return;
     try {
         await api("/admin/" + kind + "/" + id, { method: "DELETE" });
-        showToast("Record deleted successfully.", "success");
+        showToast("Record removed successfully.", "success");
         await renderAdmin();
     } catch (err) {
         showToast(err.message, "error");
     }
 }
 
-/* ---------- Init ---------- */
+/* ---------- Startup ---------- */
 (async function init() {
     const reqDate = document.getElementById("reqDate");
     if (reqDate) reqDate.min = new Date().toISOString().slice(0, 10);

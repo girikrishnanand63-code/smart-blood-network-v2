@@ -529,3 +529,230 @@ footer a:hover {
         width: 100%;
     }
 }
+/* ===== Dynamic Injected Components (Cards, Badges, Profiles) ===== */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.donor-card {
+    background: #ffffff;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.donor-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: #cbd5e1;
+}
+
+.donor-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.donor-card-header h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+}
+
+.donor-id {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.blood-badge {
+    background: var(--light-red);
+    color: var(--primary);
+    border: 1px solid var(--border-red);
+    font-size: 14px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 8px;
+    letter-spacing: 0.02em;
+}
+
+.blood-badge-inline {
+    background: var(--light-red);
+    color: var(--primary);
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.donor-info {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 4px 0;
+}
+
+.donor-phone {
+    color: var(--primary);
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+.donor-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.call-btn {
+    background: var(--primary);
+    color: white !important;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.2s ease;
+}
+
+.call-btn:hover {
+    background: var(--primary-hover);
+}
+
+.status {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.status.ok {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.status.wait {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.delete-btn {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+    border: none !important;
+}
+
+.delete-btn:hover {
+    background: #fecaca !important;
+}
+
+button.small {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.profile-row {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.profile-row span {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.metrics-pill-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-top: 8px;
+}
+
+.accepted-pill {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    margin-top: 6px;
+}
+
+/* ===== Toast Alert Box ===== */
+#toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 14px 20px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#toast.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+#toast.success {
+    background: #0f172a;
+    color: #ffffff;
+    border-left: 4px solid #22c55e;
+}
+
+#toast.error {
+    background: #0f172a;
+    color: #ffffff;
+    border-left: 4px solid #ef4444;
+}
+
+@keyframes fadeScale {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+}
