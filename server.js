@@ -27,20 +27,24 @@ const CAN_RECEIVE_FROM = {
 };
 
 /* ---------- Bootstrap First Admin ---------- */
+/* ---------- Bootstrap First Admin ---------- */
 (function bootstrapAdmin() {
     try {
         const email = (process.env.ADMIN_EMAIL || "girikrishnanand63@gmail.com").trim().toLowerCase();
         const pass = process.env.ADMIN_PASSWORD || "Admin@123456";
+        // Yahan apna naam daalein (jaise "Giri Krishnanand"):
+        const adminName = process.env.ADMIN_NAME || "Giri Krishnanand";
 
         const existing = db.prepare("SELECT * FROM users WHERE email=?").get(email);
         const hash = bcrypt.hashSync(pass, 10);
         if (!existing) {
             db.prepare("INSERT INTO users(name,email,password_hash,role) VALUES(?,?,?,'admin')")
-                .run("Administrator", email, hash);
+                .run(adminName, email, hash);
             console.log("Admin account successfully created for", email);
         } else {
-            db.prepare("UPDATE users SET password_hash=?, role='admin' WHERE email=?")
-                .run(hash, email);
+            // Name bhi update hoga:
+            db.prepare("UPDATE users SET name=?, password_hash=?, role='admin' WHERE email=?")
+                .run(adminName, hash, email);
             console.log("Admin account verified & credentials updated for", email);
         }
     } catch (err) {
