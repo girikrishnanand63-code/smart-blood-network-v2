@@ -1,31 +1,48 @@
-/* ===== Global Styles ===== */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ===== 1. Global Reset & Theme Variables ===== */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 :root {
-    --primary: #c62828;
-    --dark-red: #8e0000;
-    --light-red: #fff0f0;
+    --primary: #dc2626;          /* Crimson Medical Red */
+    --primary-hover: #b91c1c;
+    --dark-red: #991b1b;
+    --light-red: #fef2f2;
+    --border-red: #fecaca;
     --white: #ffffff;
-    --text: #292929;
-    --muted: #666666;
-    --border: #f0dada;
-    --shadow: 0 8px 28px rgba(100, 0, 0, 0.08);
+    --text: #0f172a;             /* Dark Slate */
+    --muted: #64748b;            /* Subtitle Grey */
+    --border: #e2e8f0;
+    --bg-page: #f8fafc;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 20px 30px -10px rgba(220, 38, 38, 0.12);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
 }
 
 html {
     scroll-behavior: smooth;
-    scroll-padding-top: 100px;
+    scroll-padding-top: 90px;
 }
 
 body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: #fffafa;
+    background: var(--bg-page);
     color: var(--text);
-    line-height: 1.7;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
 }
 
 button, input, select {
@@ -38,34 +55,47 @@ button, a {
 
 a {
     color: var(--primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--primary-hover);
 }
 
 button {
     cursor: pointer;
-    transition: 0.25s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ===== Header & Navigation ===== */
+.hidden {
+    display: none !important;
+}
+
+/* ===== 2. Header & Sticky Glass Navbar ===== */
 header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 20px;
-    flex-wrap: wrap;
-    padding: 18px 5%;
-    background: var(--white);
-    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06);
+    padding: 14px 6%;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.04);
+    border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 100;
 }
 
 .logo {
-    text-decoration: none;
-    color: var(--dark-red);
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 800;
-    white-space: nowrap;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: -0.02em;
 }
 
 .logo span {
@@ -75,13 +105,11 @@ header {
 nav {
     display: flex;
     align-items: center;
-    gap: 20px;
-    flex-wrap: wrap;
+    gap: 22px;
 }
 
 nav a {
-    color: #333;
-    text-decoration: none;
+    color: var(--muted);
     font-size: 14px;
     font-weight: 600;
 }
@@ -92,60 +120,94 @@ nav a:hover {
 
 .auth-buttons {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
 }
 
 .auth-buttons button,
 button[type="submit"] {
     background: var(--primary);
-    color: white;
+    color: var(--white);
     border: 1px solid var(--primary);
-    padding: 10px 17px;
-    border-radius: 8px;
+    padding: 9px 18px;
+    border-radius: var(--radius-sm);
     font-weight: 600;
+    font-size: 13.5px;
+    box-shadow: var(--shadow-sm);
 }
 
 .auth-buttons button:hover,
 button[type="submit"]:hover {
-    background: var(--dark-red);
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
 }
 
 .auth-buttons button:last-child {
-    background: white;
-    color: var(--primary);
+    background: var(--white);
+    color: var(--text);
+    border: 1px solid var(--border);
 }
 
-/* ===== Home Hero ===== */
+.auth-buttons button:last-child:hover {
+    background: var(--light-red);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+#notifBtn {
+    background: #f1f5f9;
+    color: var(--text);
+    border: 1px solid #cbd5e1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status.ok {
+    background: var(--primary);
+    color: white;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+/* ===== 3. Home Hero Section ===== */
 .hero {
-    background: linear-gradient(135deg, #fff0f0, #ffffff 70%);
+    position: relative;
+    background: radial-gradient(circle at 50% 15%, rgba(254, 242, 242, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
     text-align: center;
-    padding: 75px 20px 45px;
+    padding: 80px 20px 50px;
 }
 
 .tagline {
     display: inline-block;
-    background: #ffe0e0;
-    color: var(--dark-red);
-    padding: 6px 14px;
-    border-radius: 30px;
+    background: var(--light-red);
+    color: var(--primary);
+    border: 1px solid var(--border-red);
+    padding: 6px 16px;
+    border-radius: 999px;
     font-size: 12px;
     font-weight: 800;
-    letter-spacing: 1px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     margin-bottom: 20px;
 }
 
 .hero h1 {
-    color: var(--dark-red);
-    font-size: clamp(36px, 6vw, 58px);
-    line-height: 1.15;
-    margin-bottom: 20px;
+    color: var(--text);
+    font-size: clamp(34px, 5.5vw, 54px);
+    font-weight: 850;
+    line-height: 1.18;
+    letter-spacing: -0.03em;
+    margin-bottom: 18px;
 }
 
 .hero > p:not(.tagline) {
-    max-width: 600px;
-    margin: 0 auto;
+    max-width: 620px;
+    margin: 0 auto 36px;
     color: var(--muted);
     font-size: 17px;
 }
@@ -153,121 +215,161 @@ button[type="submit"]:hover {
 .hero-buttons {
     display: flex;
     justify-content: center;
-    gap: 14px;
+    gap: 12px;
     flex-wrap: wrap;
-    margin-top: 28px;
+    margin-top: 10px;
 }
 
 .hero-buttons button {
-    padding: 13px 22px;
-    border-radius: 8px;
+    padding: 12px 24px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--primary);
     background: var(--primary);
     color: white;
-    font-weight: bold;
-}
-
-.hero-buttons button:last-child {
-    background: white;
-    color: var(--primary);
+    font-weight: 700;
+    font-size: 14.5px;
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.2);
 }
 
 .hero-buttons button:hover {
+    background: var(--primary-hover);
     transform: translateY(-2px);
-    box-shadow: var(--shadow);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.28);
 }
 
-/* ===== Statistics ===== */
+.hero-buttons button:nth-child(2),
+.hero-buttons button:nth-child(3),
+.hero-buttons button:last-child {
+    background: var(--white);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.hero-buttons button:nth-child(2):hover,
+.hero-buttons button:nth-child(3):hover,
+.hero-buttons button:last-child:hover {
+    background: var(--light-red);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* ===== 4. Statistics Cards ===== */
 .stats {
-    max-width: 760px;
-    margin: 48px auto 0;
+    max-width: 820px;
+    margin: 50px auto 0;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
+    padding: 0 10px;
 }
 
 .stats div {
-    background: white;
-    padding: 20px 10px;
-    border-radius: 12px;
+    background: var(--white);
+    padding: 22px 16px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.stats div:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-red);
 }
 
 .stats h2 {
     color: var(--primary);
-    font-size: 25px;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 2px;
 }
 
 .stats p {
     color: var(--muted);
-    font-size: 13px;
+    font-size: 13.5px;
+    font-weight: 600;
 }
 
-/* ===== Pages & Cards ===== */
+/* ===== 5. Modern Cards & Containers ===== */
 .page {
-    padding: 35px 5%;
+    padding: 30px 5%;
 }
 
 .card {
     max-width: 720px;
-    margin: 32px auto;
-    padding: 32px;
-    background: white;
+    margin: 30px auto;
+    padding: 36px;
+    background: var(--white);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: var(--shadow);
-    scroll-margin-top: 110px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
 }
 
 .card h2 {
-    color: var(--dark-red);
-    font-size: 28px;
-    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
 }
 
 .card > p {
     color: var(--muted);
-    margin-bottom: 18px;
+    font-size: 15px;
+    margin-bottom: 24px;
 }
 
 .card h3 {
-    margin: 18px 0 5px;
-    color: var(--dark-red);
+    margin: 24px 0 10px;
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 700;
 }
 
 .card ul {
-    padding-left: 24px;
+    padding-left: 20px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
-/* ===== Forms ===== */
+/* ===== 6. Forms & Inputs ===== */
 form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin: 22px 0;
+    gap: 14px;
+    margin: 20px 0;
 }
 
 form label {
-    font-weight: 600;
-    font-size: 14px;
-    margin-top: 4px;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
 }
 
 input:not([type="checkbox"]),
 select {
     width: 100%;
-    padding: 13px 14px;
-    border: 1px solid #dedede;
-    border-radius: 8px;
-    background: white;
-    outline: none;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fcfdfe;
+    font-size: 14.5px;
     color: var(--text);
+    outline: none;
+    transition: all 0.2s ease;
 }
 
-input:focus,
+input:not([type="checkbox"]):focus,
 select:focus {
+    background: var(--white);
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
 
 .check-label {
@@ -275,128 +377,155 @@ select:focus {
     align-items: flex-start;
     gap: 10px;
     color: var(--muted);
+    font-size: 13.5px;
     line-height: 1.5;
+    cursor: pointer;
+    margin-top: 4px;
 }
 
 .check-label input {
-    margin-top: 5px;
-    flex-shrink: 0;
+    margin-top: 3px;
+    accent-color: var(--primary);
+    cursor: pointer;
 }
 
 .secondary {
-    background: white;
-    color: var(--primary);
-    border: 1px solid var(--primary);
-    padding: 10px 16px;
-    border-radius: 8px;
-    margin: 5px 5px 5px 0;
+    background: var(--white);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 13.5px;
+    margin: 6px 6px 6px 0;
 }
 
 .secondary:hover {
     background: var(--light-red);
+    color: var(--primary);
+    border-color: var(--border-red);
 }
 
-.hidden {
-    display: none !important;
-}
-
-/* ===== Search Results & Profile ===== */
+/* ===== 7. Results, Admin & Dynamic Lists ===== */
 #searchResults,
 #profileDetails,
-#donationHistory {
-    background: #fffafa;
-    padding: 16px;
-    border-radius: 10px;
-    margin-top: 16px;
+#donationHistory,
+#myRequests,
+#notificationList,
+#emergencyResults,
+#adminContent {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    padding: 20px;
+    border-radius: var(--radius-md);
+    margin-top: 18px;
     overflow-wrap: anywhere;
+    font-size: 14.5px;
 }
 
-/* ===== Footer ===== */
+/* Tables inside admin & results */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 13.5px;
+}
+
+th, td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    background: #f1f5f9;
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+/* Toast Message */
+#toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0f172a;
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    display: none;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 8. Footer ===== */
 footer {
-    background: #350909;
-    color: #fff;
+    background: #0f172a;
+    color: #94a3b8;
     text-align: center;
-    padding: 30px 15px;
-    margin-top: 40px;
+    padding: 40px 20px;
+    margin-top: 60px;
+    border-top: 1px solid #1e293b;
 }
 
 footer p {
-    margin: 5px;
-    font-size: 14px;
+    margin: 4px 0;
+    font-size: 13.5px;
 }
 
 footer a {
-    color: #ffdada;
-    display: inline-block;
-    margin-top: 10px;
+    color: #cbd5e1;
+    font-weight: 600;
 }
 
-/* ===== Mobile Responsive ===== */
+footer a:hover {
+    color: var(--primary);
+}
+
+/* ===== 9. Responsive Rules ===== */
 @media (max-width: 850px) {
     header {
-        justify-content: center;
-        text-align: center;
+        flex-direction: column;
+        padding: 14px 20px;
+        gap: 14px;
     }
-
     nav {
+        flex-wrap: wrap;
         justify-content: center;
+        gap: 16px;
     }
-
     .auth-buttons {
+        flex-wrap: wrap;
         justify-content: center;
     }
 }
 
 @media (max-width: 600px) {
-    header {
-        padding: 15px 12px;
-        gap: 14px;
-    }
-
-    nav {
-        gap: 12px;
-    }
-
-    nav a {
-        font-size: 13px;
-    }
-
-    .auth-buttons button {
-        padding: 9px 12px;
-        font-size: 13px;
-    }
-
     .hero {
-        padding: 48px 16px 30px;
+        padding: 50px 16px 30px;
     }
-
-    .hero > p:not(.tagline) {
-        font-size: 15px;
-    }
-
     .stats {
-        gap: 8px;
-        margin-top: 30px;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-top: 32px;
     }
-
-    .stats div {
-        padding: 14px 5px;
-    }
-
-    .stats h2 {
-        font-size: 19px;
-    }
-
-    .stats p {
-        font-size: 11px;
-    }
-
     .card {
-        margin: 20px 12px;
-        padding: 22px 17px;
+        margin: 16px 8px;
+        padding: 24px 16px;
     }
-
-    .card h2 {
-        font-size: 24px;
+    .hero-buttons {
+        flex-direction: column;
+    }
+    .hero-buttons button {
+        width: 100%;
     }
 }
