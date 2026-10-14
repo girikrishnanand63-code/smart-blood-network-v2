@@ -136,8 +136,6 @@ const signupHandler = async (req, res) => {
 
 app.post("/api/auth/signup", signupHandler);
 app.post("/api/auth/register-request", signupHandler);
-app.post("/api/auth/signup", signupHandler);
-app.post("/api/auth/register-request", signupHandler);
 
 // Verify OTP -> creates user in users table
 const verifyOtpHandler = async (req, res) => {
